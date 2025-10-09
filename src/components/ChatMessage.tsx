@@ -42,8 +42,8 @@ const ChatMessage = ({ message }: ChatMessageProps) => {
         audio.onerror = () => {
           setIsPlaying(false);
           toast({
-            title: "Erro",
-            description: "Falha ao reproduzir o áudio",
+            title: "Error",
+            description: "Failed to play audio",
             variant: "destructive",
           });
         };
@@ -53,8 +53,8 @@ const ChatMessage = ({ message }: ChatMessageProps) => {
     } catch (error) {
       console.error('Error generating speech:', error);
       toast({
-        title: "Erro",
-        description: "Falha ao gerar áudio",
+        title: "Error",
+        description: "Failed to generate audio",
         variant: "destructive",
       });
     } finally {
