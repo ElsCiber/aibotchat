@@ -4,7 +4,8 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { streamChat, Message } from "@/utils/chatStream";
 import ChatMessage from "./ChatMessage";
-import { Send, Flame } from "lucide-react";
+import { Send } from "lucide-react";
+import deepViewLogo from "@/assets/deepview-logo.png";
 
 const ChatInterface = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -72,14 +73,14 @@ const ChatInterface = () => {
         <div className="container max-w-4xl mx-auto px-4 py-6">
           <div className="flex items-center gap-3">
             <div className="relative">
-              <Flame className="w-10 h-10 text-primary animate-pulse" />
+              <img src={deepViewLogo} alt="DeepView Logo" className="w-12 h-12" />
               <div className="absolute inset-0 blur-xl bg-primary/50 animate-pulse" />
             </div>
             <div>
               <h1 className="text-3xl font-bold bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
-                Roast Master AI
+                DeepView AI
               </h1>
-              <p className="text-sm text-muted-foreground">Ask me anything... if you dare</p>
+              <p className="text-sm text-muted-foreground">Advanced AI conversation with deep insights</p>
             </div>
           </div>
         </div>
@@ -90,12 +91,12 @@ const ChatInterface = () => {
         <div className="container max-w-4xl mx-auto px-4 py-8">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center space-y-4">
-              <Flame className="w-20 h-20 text-primary/50" />
+              <img src={deepViewLogo} alt="DeepView Logo" className="w-24 h-24 opacity-50" />
               <div>
-                <h2 className="text-2xl font-bold text-foreground mb-2">Ready to Get Roasted?</h2>
+                <h2 className="text-2xl font-bold text-foreground mb-2">Welcome to DeepView AI</h2>
                 <p className="text-muted-foreground max-w-md">
-                  Ask me anything and I'll answer it... while absolutely destroying you in the process.
-                  No question is safe. No ego will survive.
+                  Experience advanced AI conversation with powerful insights and brutally honest responses.
+                  Ask anything and get deep, unfiltered answers.
                 </p>
               </div>
             </div>
@@ -118,7 +119,7 @@ const ChatInterface = () => {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Ask me something... I dare you"
+              placeholder="Ask me anything..."
               disabled={isLoading}
               className="flex-1 bg-background border-border focus-visible:ring-primary"
             />
