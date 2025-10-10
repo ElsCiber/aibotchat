@@ -1,7 +1,7 @@
 import { Message } from "@/utils/chatStream";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Volume2, Loader2 } from "lucide-react";
+import { Volume2, Loader2, Copy, Check } from "lucide-react";
 import { useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -15,6 +15,7 @@ const ChatMessage = ({ message, language = "en" }: ChatMessageProps) => {
   const isUser = message.role === "user";
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const { toast } = useToast();
 
@@ -63,6 +64,24 @@ const ChatMessage = ({ message, language = "en" }: ChatMessageProps) => {
     }
   };
 
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(message.content);
+      setIsCopied(true);
+      toast({
+        title: language === "es" ? "Copiado" : "Copied",
+        description: language === "es" ? "Respuesta copiada al portapapeles" : "Response copied to clipboard",
+      });
+      setTimeout(() => setIsCopied(false), 2000);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: language === "es" ? "No se pudo copiar" : "Failed to copy",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className={cn("flex w-full mb-6", isUser ? "justify-end" : "justify-start")}>
       <div
@@ -75,20 +94,47 @@ const ChatMessage = ({ message, language = "en" }: ChatMessageProps) => {
         style={isUser ? { boxShadow: "var(--shadow-glow)" } : {}}
       >
         <p className="text-base leading-relaxed whitespace-pre-wrap">{message.content}</p>
+        {message.images && message.images.length > 0 && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {message.images.map((img, idx) => (
+              <img
+                key={idx}
+                src={img}
+                alt={`Generated image ${idx + 1}`}
+                className="max-w-full rounded-lg border border-border"
+                style={{ maxHeight: "400px" }}
+              />
+            ))}
+          </div>
+        )}
         {!isUser && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handlePlayAudio}
-            disabled={isLoading}
-            className="mt-2 h-8 px-2"
-          >
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Volume2 className={cn("h-4 w-4", isPlaying && "text-primary")} />
-            )}
-          </Button>
+          <div className="flex gap-1 mt-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleCopy}
+              className="h-8 px-2"
+            >
+              {isCopied ? (
+                <Check className="h-4 w-4 text-primary" />
+              ) : (
+                <Copy className="h-4 w-4" />
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handlePlayAudio}
+              disabled={isLoading}
+              className="h-8 px-2"
+            >
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Volume2 className={cn("h-4 w-4", isPlaying && "text-primary")} />
+              )}
+            </Button>
+          </div>
         )}
       </div>
     </div>

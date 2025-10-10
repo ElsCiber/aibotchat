@@ -1,4 +1,8 @@
-export type Message = { role: "user" | "assistant"; content: string };
+export type Message = { 
+  role: "user" | "assistant"; 
+  content: string;
+  images?: string[];
+};
 
 export async function streamChat({
   messages,
@@ -14,13 +18,30 @@ export async function streamChat({
   const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/roast-chat`;
 
   try {
+    // Transform messages to include images if present
+    const transformedMessages = messages.map(msg => {
+      if (msg.images && msg.images.length > 0) {
+        return {
+          role: msg.role,
+          content: [
+            { type: "text", text: msg.content },
+            ...msg.images.map(img => ({
+              type: "image_url",
+              image_url: { url: img }
+            }))
+          ]
+        };
+      }
+      return { role: msg.role, content: msg.content };
+    });
+
     const resp = await fetch(CHAT_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
       },
-      body: JSON.stringify({ messages }),
+      body: JSON.stringify({ messages: transformedMessages }),
     });
 
     if (!resp.ok) {
@@ -68,6 +89,15 @@ export async function streamChat({
           const parsed = JSON.parse(jsonStr);
           const content = parsed.choices?.[0]?.delta?.content as string | undefined;
           if (content) onDelta(content);
+          
+          // Handle image generation responses
+          const images = parsed.choices?.[0]?.message?.images;
+          if (images && images.length > 0) {
+            const imageUrls = images.map((img: any) => img.image_url?.url).filter(Boolean);
+            if (imageUrls.length > 0) {
+              onDelta(JSON.stringify({ images: imageUrls }));
+            }
+          }
         } catch {
           textBuffer = line + "\n" + textBuffer;
           break;

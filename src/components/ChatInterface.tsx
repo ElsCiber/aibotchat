@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { streamChat, Message } from "@/utils/chatStream";
 import ChatMessage from "./ChatMessage";
-import { Send, Globe } from "lucide-react";
+import { Send, Globe, Image as ImageIcon, X } from "lucide-react";
 import deepViewLogo from "@/assets/deepview-logo.png";
 import { useLanguage } from "@/contexts/LanguageContext";
 import {
@@ -18,7 +18,9 @@ const ChatInterface = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { language, setLanguage, t } = useLanguage();
 
@@ -31,24 +33,43 @@ const ChatInterface = () => {
   }, [messages]);
 
   const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+    if ((!input.trim() && uploadedImages.length === 0) || isLoading) return;
 
-    const userMessage: Message = { role: "user", content: input.trim() };
+    const userMessage: Message = { 
+      role: "user", 
+      content: input.trim() || (language === "es" ? "¿Qué ves en esta imagen?" : "What do you see in this image?"),
+      images: uploadedImages.length > 0 ? [...uploadedImages] : undefined
+    };
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
+    setUploadedImages([]);
     setIsLoading(true);
 
     let assistantContent = "";
+    let assistantImages: string[] = [];
     const upsertAssistant = (chunk: string) => {
-      assistantContent += chunk;
+      // Check if chunk contains image data
+      try {
+        const parsed = JSON.parse(chunk);
+        if (parsed.images) {
+          assistantImages = parsed.images;
+          return;
+        }
+      } catch {
+        // Not JSON, regular text content
+        assistantContent += chunk;
+      }
+      
       setMessages((prev) => {
         const last = prev[prev.length - 1];
         if (last?.role === "assistant") {
           return prev.map((m, i) =>
-            i === prev.length - 1 ? { ...m, content: assistantContent } : m
+            i === prev.length - 1 
+              ? { ...m, content: assistantContent, images: assistantImages.length > 0 ? assistantImages : undefined } 
+              : m
           );
         }
-        return [...prev, { role: "assistant", content: assistantContent }];
+        return [...prev, { role: "assistant", content: assistantContent, images: assistantImages.length > 0 ? assistantImages : undefined }];
       });
     };
 
@@ -65,6 +86,37 @@ const ChatInterface = () => {
         });
       },
     });
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    Array.from(files).forEach((file) => {
+      if (file.size > 20 * 1024 * 1024) {
+        toast({
+          title: "Error",
+          description: language === "es" ? "La imagen es demasiado grande (max 20MB)" : "Image too large (max 20MB)",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64 = event.target?.result as string;
+        setUploadedImages((prev) => [...prev, base64]);
+      };
+      reader.readAsDataURL(file);
+    });
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setUploadedImages((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -135,7 +187,42 @@ const ChatInterface = () => {
       {/* Input */}
       <div className="border-t border-border bg-card/50 backdrop-blur-sm">
         <div className="container max-w-4xl mx-auto px-4 py-6">
+          {uploadedImages.length > 0 && (
+            <div className="flex gap-2 mb-3 flex-wrap">
+              {uploadedImages.map((img, idx) => (
+                <div key={idx} className="relative">
+                  <img
+                    src={img}
+                    alt={`Upload ${idx + 1}`}
+                    className="h-20 w-20 object-cover rounded-lg border border-border"
+                  />
+                  <button
+                    onClick={() => removeImage(idx)}
+                    className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 hover:bg-destructive/90"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="flex gap-3">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleImageUpload}
+              className="hidden"
+            />
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isLoading}
+            >
+              <ImageIcon className="h-5 w-5" />
+            </Button>
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -146,7 +233,7 @@ const ChatInterface = () => {
             />
             <Button
               onClick={handleSend}
-              disabled={isLoading || !input.trim()}
+              disabled={isLoading || (!input.trim() && uploadedImages.length === 0)}
               className="bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90"
               style={{ boxShadow: "var(--shadow-glow)" }}
             >
