@@ -11,7 +11,7 @@ serve(async (req) => {
   }
 
   try {
-    const { text } = await req.json();
+    const { text, language = 'en' } = await req.json();
 
     if (!text) {
       throw new Error('Text is required');
@@ -22,9 +22,12 @@ serve(async (req) => {
       throw new Error('ELEVENLABS_API_KEY not configured');
     }
 
-    console.log('Generating speech for text:', text.substring(0, 50));
+    console.log('Generating speech for text:', text.substring(0, 50), 'Language:', language);
 
-    // Using default voice "Sarah" - EXAVITQu4vr4xnSDxMaL
+    // Select model based on language - Turbo v2.5 supports 32 languages including Spanish
+    const modelId = 'eleven_turbo_v2_5';
+    
+    // Using default voice "Sarah" - EXAVITQu4vr4xnSDxMaL (supports multilingual)
     const response = await fetch(
       'https://api.elevenlabs.io/v1/text-to-speech/EXAVITQu4vr4xnSDxMaL',
       {
@@ -36,11 +39,12 @@ serve(async (req) => {
         },
         body: JSON.stringify({
           text,
-          model_id: 'eleven_turbo_v2',
+          model_id: modelId,
           voice_settings: {
             stability: 0.5,
             similarity_boost: 0.75,
           },
+          language_code: language === 'es' ? 'es' : 'en',
         }),
       }
     );

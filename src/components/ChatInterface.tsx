@@ -4,8 +4,15 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { streamChat, Message } from "@/utils/chatStream";
 import ChatMessage from "./ChatMessage";
-import { Send } from "lucide-react";
+import { Send, Globe } from "lucide-react";
 import deepViewLogo from "@/assets/deepview-logo.png";
+import { useLanguage } from "@/contexts/LanguageContext";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const ChatInterface = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -13,6 +20,7 @@ const ChatInterface = () => {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  const { language, setLanguage, t } = useLanguage();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -71,17 +79,34 @@ const ChatInterface = () => {
       {/* Header */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm">
         <div className="container max-w-4xl mx-auto px-4 py-6">
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <img src={deepViewLogo} alt="DeepView Logo" className="w-12 h-12" />
-              <div className="absolute inset-0 blur-xl bg-primary/50 animate-pulse" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <img src={deepViewLogo} alt="DeepView Logo" className="w-12 h-12 rounded-full" />
+                <div className="absolute inset-0 blur-xl bg-primary/50 animate-pulse rounded-full" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
+                  {t("title")}
+                </h1>
+                <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
-                DeepView AI
-              </h1>
-              <p className="text-sm text-muted-foreground">Advanced AI conversation with deep insights</p>
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <Globe className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setLanguage("en")}>
+                  🇬🇧 English
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setLanguage("es")}>
+                  🇪🇸 Español
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </header>
@@ -91,19 +116,15 @@ const ChatInterface = () => {
         <div className="container max-w-4xl mx-auto px-4 py-8">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center space-y-4">
-              <img src={deepViewLogo} alt="DeepView Logo" className="w-24 h-24 opacity-50" />
+              <img src={deepViewLogo} alt="DeepView Logo" className="w-24 h-24 opacity-50 rounded-full" />
               <div>
-                <h2 className="text-2xl font-bold text-foreground mb-2">Welcome to DeepView AI</h2>
-                <p className="text-muted-foreground max-w-md">
-                  Experience advanced AI conversation with powerful insights and brutally honest responses.
-                  Ask anything and get deep, unfiltered answers.
-                </p>
+                <h2 className="text-2xl font-bold text-foreground mb-2">{t("welcome")}</h2>
               </div>
             </div>
           ) : (
             <>
               {messages.map((message, index) => (
-                <ChatMessage key={index} message={message} />
+                <ChatMessage key={index} message={message} language={language} />
               ))}
               <div ref={messagesEndRef} />
             </>
@@ -119,7 +140,7 @@ const ChatInterface = () => {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Ask me anything..."
+              placeholder={t("placeholder")}
               disabled={isLoading}
               className="flex-1 bg-background border-border focus-visible:ring-primary"
             />

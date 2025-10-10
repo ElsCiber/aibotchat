@@ -8,9 +8,10 @@ import { useToast } from "@/hooks/use-toast";
 
 interface ChatMessageProps {
   message: Message;
+  language?: string;
 }
 
-const ChatMessage = ({ message }: ChatMessageProps) => {
+const ChatMessage = ({ message, language = "en" }: ChatMessageProps) => {
   const isUser = message.role === "user";
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -28,7 +29,7 @@ const ChatMessage = ({ message }: ChatMessageProps) => {
     setIsLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('text-to-speech', {
-        body: { text: message.content }
+        body: { text: message.content, language }
       });
 
       if (error) throw error;
