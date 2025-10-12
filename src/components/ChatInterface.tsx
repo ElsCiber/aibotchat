@@ -4,11 +4,12 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { streamChat, Message } from "@/utils/chatStream";
 import ChatMessage from "./ChatMessage";
-import { Send, Globe, Image as ImageIcon, X, Menu } from "lucide-react";
+import { Send, Globe, Image as ImageIcon, X, Menu, LogOut } from "lucide-react";
 import deepViewLogo from "@/assets/deepview-logo.png";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useSidebar } from "@/components/ui/sidebar";
+import { useNavigate } from "react-router-dom";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,6 +33,12 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
   const { toast } = useToast();
   const { language, setLanguage, t } = useLanguage();
   const { toggleSidebar } = useSidebar();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate("/auth");
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -312,21 +319,26 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
                 <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
               </div>
             </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <Globe className="h-5 w-5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setLanguage("en")}>
-                  🇬🇧 English
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setLanguage("es")}>
-                  🇪🇸 Español
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="flex items-center gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <Globe className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setLanguage("en")}>
+                    🇬🇧 English
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setLanguage("es")}>
+                    🇪🇸 Español
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button variant="ghost" size="icon" onClick={handleLogout}>
+                <LogOut className="h-5 w-5" />
+              </Button>
+            </div>
           </div>
         </div>
       </header>
