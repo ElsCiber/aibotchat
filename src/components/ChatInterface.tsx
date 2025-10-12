@@ -40,10 +40,27 @@ const ChatInterface = () => {
       content: input.trim() || (language === "es" ? "¿Qué ves en esta imagen?" : "What do you see in this image?"),
       images: uploadedImages.length > 0 ? [...uploadedImages] : undefined
     };
+    
+    // Detect image generation request
+    const inputLower = input.toLowerCase();
+    const isImageGenRequest = (
+      (inputLower.includes("genera") || inputLower.includes("crea") || inputLower.includes("dibuja") ||
+       inputLower.includes("generate") || inputLower.includes("create") || inputLower.includes("draw")) &&
+      (inputLower.includes("imagen") || inputLower.includes("image") || inputLower.includes("foto") || inputLower.includes("picture"))
+    );
+    
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setUploadedImages([]);
     setIsLoading(true);
+
+    // Add "Generating image..." message if it's an image generation request
+    if (isImageGenRequest) {
+      setMessages((prev) => [...prev, { 
+        role: "assistant", 
+        content: language === "es" ? "Generando imagen..." : "Generating image..." 
+      }]);
+    }
 
     let assistantContent = "";
     let assistantImages: string[] = [];

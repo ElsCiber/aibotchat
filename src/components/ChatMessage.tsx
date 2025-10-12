@@ -1,10 +1,11 @@
 import { Message } from "@/utils/chatStream";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Volume2, Loader2, Copy, Check, Download } from "lucide-react";
+import { Volume2, Loader2, Copy, Check, Download, X } from "lucide-react";
 import { useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 
 interface ChatMessageProps {
   message: Message;
@@ -16,6 +17,7 @@ const ChatMessage = ({ message, language = "en" }: ChatMessageProps) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const { toast } = useToast();
 
@@ -125,21 +127,59 @@ const ChatMessage = ({ message, language = "en" }: ChatMessageProps) => {
         style={isUser ? { boxShadow: "var(--shadow-glow)" } : {}}
       >
         <p className="text-base leading-relaxed whitespace-pre-wrap">{message.content}</p>
-        {message.images && message.images.length > 0 && (
+        
+        {/* User uploaded images - no download button */}
+        {isUser && message.images && message.images.length > 0 && (
           <div className="mt-4 flex flex-col gap-3">
             {message.images.map((img, idx) => (
-              <div key={idx} className="relative inline-block">
-                <img
-                  src={img}
-                  alt={`Generated image ${idx + 1}`}
-                  className="max-w-full rounded-lg border border-border"
-                  style={{ maxHeight: "400px" }}
-                />
+              <Dialog key={idx}>
+                <DialogTrigger asChild>
+                  <img
+                    src={img}
+                    alt={`Uploaded image ${idx + 1}`}
+                    className="max-w-full rounded-lg border border-border cursor-pointer hover:opacity-90 transition-opacity"
+                    style={{ maxHeight: "400px" }}
+                  />
+                </DialogTrigger>
+                <DialogContent className="max-w-[90vw] max-h-[90vh] p-0">
+                  <img
+                    src={img}
+                    alt={`Uploaded image ${idx + 1}`}
+                    className="w-full h-full object-contain"
+                  />
+                </DialogContent>
+              </Dialog>
+            ))}
+          </div>
+        )}
+        
+        {/* AI generated images - with download button and zoom */}
+        {!isUser && message.images && message.images.length > 0 && (
+          <div className="mt-4 flex flex-col gap-3">
+            {message.images.map((img, idx) => (
+              <div key={idx} className="relative inline-block group">
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <img
+                      src={img}
+                      alt={`Generated image ${idx + 1}`}
+                      className="max-w-full rounded-lg border border-border cursor-pointer hover:opacity-90 transition-opacity"
+                      style={{ maxHeight: "400px" }}
+                    />
+                  </DialogTrigger>
+                  <DialogContent className="max-w-[90vw] max-h-[90vh] p-0">
+                    <img
+                      src={img}
+                      alt={`Generated image ${idx + 1}`}
+                      className="w-full h-full object-contain"
+                    />
+                  </DialogContent>
+                </Dialog>
                 <Button
                   variant="secondary"
                   size="sm"
                   onClick={() => handleDownloadImage(img, idx)}
-                  className="absolute bottom-2 right-2 shadow-lg"
+                  className="absolute bottom-2 right-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
                 >
                   <Download className="h-4 w-4 mr-2" />
                   {language === "es" ? "Descargar" : "Download"}
