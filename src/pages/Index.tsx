@@ -7,11 +7,6 @@ import { supabase } from "@/integrations/supabase/client";
 const Index = () => {
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Create initial conversation if none exists
-    createNewConversation();
-  }, []);
-
   const createNewConversation = async () => {
     const { data, error } = await supabase
       .from("conversations")
@@ -34,7 +29,11 @@ const Index = () => {
   };
 
   const handleNewConversation = () => {
-    createNewConversation();
+    setCurrentConversationId(null);
+  };
+
+  const handleConversationCreated = (id: string) => {
+    setCurrentConversationId(id);
   };
 
   return (
@@ -46,7 +45,10 @@ const Index = () => {
           onNewConversation={handleNewConversation}
         />
         <main className="flex-1">
-          <ChatInterface conversationId={currentConversationId} />
+          <ChatInterface 
+            conversationId={currentConversationId}
+            onConversationCreated={handleConversationCreated}
+          />
         </main>
       </div>
     </SidebarProvider>

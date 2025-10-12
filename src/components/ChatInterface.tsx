@@ -4,10 +4,11 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { streamChat, Message } from "@/utils/chatStream";
 import ChatMessage from "./ChatMessage";
-import { Send, Globe, Image as ImageIcon, X } from "lucide-react";
+import { Send, Globe, Image as ImageIcon, X, Menu } from "lucide-react";
 import deepViewLogo from "@/assets/deepview-logo.png";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
+import { useSidebar } from "@/components/ui/sidebar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,9 +18,10 @@ import {
 
 interface ChatInterfaceProps {
   conversationId: string | null;
+  onConversationCreated: (id: string) => void;
 }
 
-const ChatInterface = ({ conversationId }: ChatInterfaceProps) => {
+const ChatInterface = ({ conversationId, onConversationCreated }: ChatInterfaceProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -28,6 +30,7 @@ const ChatInterface = ({ conversationId }: ChatInterfaceProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { language, setLanguage, t } = useLanguage();
+  const { toggleSidebar } = useSidebar();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -99,7 +102,31 @@ const ChatInterface = ({ conversationId }: ChatInterfaceProps) => {
   };
 
   const handleSend = async () => {
-    if ((!input.trim() && uploadedImages.length === 0) || isLoading || !conversationId) return;
+    if ((!input.trim() && uploadedImages.length === 0) || isLoading) return;
+
+    // Create conversation if none exists
+    let activeConversationId = conversationId;
+    if (!activeConversationId) {
+      const { data, error } = await supabase
+        .from("conversations")
+        .insert({
+          title: "Nueva conversación",
+        })
+        .select()
+        .single();
+
+      if (error) {
+        toast({
+          title: "Error",
+          description: language === "es" ? "Error al crear la conversación" : "Error creating conversation",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      activeConversationId = data.id;
+      onConversationCreated(data.id);
+    }
 
     const userMessage: Message = { 
       role: "user", 
@@ -116,11 +143,31 @@ const ChatInterface = ({ conversationId }: ChatInterfaceProps) => {
     );
     
     setMessages((prev) => [...prev, userMessage]);
-    await saveMessage(userMessage);
+    
+    // Save message with the active conversation ID
+    const { error: saveError } = await supabase.from("messages").insert({
+      conversation_id: activeConversationId,
+      role: userMessage.role,
+      content: userMessage.content,
+      images: userMessage.images || null,
+    });
+
+    if (saveError) {
+      console.error("Error saving message:", saveError);
+    }
     
     // Update conversation title with first message
     if (messages.length === 0) {
-      await updateConversationTitle(userMessage.content);
+      const title = userMessage.content.slice(0, 50) + (userMessage.content.length > 50 ? "..." : "");
+      
+      const { error: titleError } = await supabase
+        .from("conversations")
+        .update({ title, updated_at: new Date().toISOString() })
+        .eq("id", activeConversationId);
+
+      if (titleError) {
+        console.error("Error updating conversation title:", titleError);
+      }
     }
     
     setInput("");
@@ -174,7 +221,19 @@ const ChatInterface = ({ conversationId }: ChatInterfaceProps) => {
           content: assistantContent,
           images: assistantImages.length > 0 ? assistantImages : undefined,
         };
-        await saveMessage(assistantMessage);
+        
+        if (activeConversationId) {
+          const { error } = await supabase.from("messages").insert({
+            conversation_id: activeConversationId,
+            role: assistantMessage.role,
+            content: assistantMessage.content,
+            images: assistantMessage.images || null,
+          });
+
+          if (error) {
+            console.error("Error saving message:", error);
+          }
+        }
       },
       onError: (error) => {
         setIsLoading(false);
@@ -232,6 +291,14 @@ const ChatInterface = ({ conversationId }: ChatInterfaceProps) => {
         <div className="container max-w-4xl mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleSidebar}
+                className="md:hidden"
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
               <div className="relative">
                 <img src={deepViewLogo} alt="DeepView Logo" className="w-12 h-12 rounded-full" />
                 <div className="absolute inset-0 blur-xl bg-primary/50 animate-pulse rounded-full" />
@@ -334,7 +401,6 @@ const ChatInterface = ({ conversationId }: ChatInterfaceProps) => {
               onClick={handleSend}
               disabled={isLoading || (!input.trim() && uploadedImages.length === 0)}
               className="bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90"
-              style={{ boxShadow: "var(--shadow-glow)" }}
             >
               <Send className="w-5 h-5" />
             </Button>
