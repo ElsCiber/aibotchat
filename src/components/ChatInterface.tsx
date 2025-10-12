@@ -7,6 +7,7 @@ import ChatMessage from "./ChatMessage";
 import { Send, Globe, Image as ImageIcon, X } from "lucide-react";
 import deepViewLogo from "@/assets/deepview-logo.png";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { supabase } from "@/integrations/supabase/client";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,7 +15,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const ChatInterface = () => {
+interface ChatInterfaceProps {
+  conversationId: string | null;
+}
+
+const ChatInterface = ({ conversationId }: ChatInterfaceProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -32,8 +37,69 @@ const ChatInterface = () => {
     scrollToBottom();
   }, [messages]);
 
+  useEffect(() => {
+    if (conversationId) {
+      loadMessages();
+    } else {
+      setMessages([]);
+    }
+  }, [conversationId]);
+
+  const loadMessages = async () => {
+    if (!conversationId) return;
+
+    const { data, error } = await supabase
+      .from("messages")
+      .select("*")
+      .eq("conversation_id", conversationId)
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      console.error("Error loading messages:", error);
+      return;
+    }
+
+    setMessages(
+      data.map((msg) => ({
+        role: msg.role as "user" | "assistant",
+        content: msg.content,
+        images: msg.images || undefined,
+      }))
+    );
+  };
+
+  const saveMessage = async (message: Message) => {
+    if (!conversationId) return;
+
+    const { error } = await supabase.from("messages").insert({
+      conversation_id: conversationId,
+      role: message.role,
+      content: message.content,
+      images: message.images || null,
+    });
+
+    if (error) {
+      console.error("Error saving message:", error);
+    }
+  };
+
+  const updateConversationTitle = async (firstMessage: string) => {
+    if (!conversationId) return;
+
+    const title = firstMessage.slice(0, 50) + (firstMessage.length > 50 ? "..." : "");
+    
+    const { error } = await supabase
+      .from("conversations")
+      .update({ title, updated_at: new Date().toISOString() })
+      .eq("id", conversationId);
+
+    if (error) {
+      console.error("Error updating conversation title:", error);
+    }
+  };
+
   const handleSend = async () => {
-    if ((!input.trim() && uploadedImages.length === 0) || isLoading) return;
+    if ((!input.trim() && uploadedImages.length === 0) || isLoading || !conversationId) return;
 
     const userMessage: Message = { 
       role: "user", 
@@ -50,6 +116,13 @@ const ChatInterface = () => {
     );
     
     setMessages((prev) => [...prev, userMessage]);
+    await saveMessage(userMessage);
+    
+    // Update conversation title with first message
+    if (messages.length === 0) {
+      await updateConversationTitle(userMessage.content);
+    }
+    
     setInput("");
     setUploadedImages([]);
     setIsLoading(true);
@@ -93,7 +166,16 @@ const ChatInterface = () => {
     await streamChat({
       messages: [...messages, userMessage],
       onDelta: (chunk) => upsertAssistant(chunk),
-      onDone: () => setIsLoading(false),
+      onDone: async () => {
+        setIsLoading(false);
+        // Save assistant message
+        const assistantMessage: Message = {
+          role: "assistant",
+          content: assistantContent,
+          images: assistantImages.length > 0 ? assistantImages : undefined,
+        };
+        await saveMessage(assistantMessage);
+      },
       onError: (error) => {
         setIsLoading(false);
         toast({
