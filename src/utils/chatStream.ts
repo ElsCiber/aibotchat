@@ -90,10 +90,13 @@ export async function streamChat({
           const content = parsed.choices?.[0]?.delta?.content as string | undefined;
           if (content) onDelta(content);
           
-          // Handle image generation responses
-          const images = parsed.choices?.[0]?.message?.images;
+          // Handle image generation responses - check both delta and message
+          const deltaImages = parsed.choices?.[0]?.delta?.images;
+          const messageImages = parsed.choices?.[0]?.message?.images;
+          const images = deltaImages || messageImages;
+          
           if (images && images.length > 0) {
-            const imageUrls = images.map((img: any) => img.image_url?.url).filter(Boolean);
+            const imageUrls = images.map((img: any) => img.image_url?.url || img.url).filter(Boolean);
             if (imageUrls.length > 0) {
               onDelta(JSON.stringify({ images: imageUrls }));
             }
