@@ -19,9 +19,10 @@ import {
 interface ChatInterfaceProps {
   conversationId: string | null;
   onConversationCreated: (id: string) => void;
+  userId: string;
 }
 
-const ChatInterface = ({ conversationId, onConversationCreated }: ChatInterfaceProps) => {
+const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatInterfaceProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -111,6 +112,7 @@ const ChatInterface = ({ conversationId, onConversationCreated }: ChatInterfaceP
         .from("conversations")
         .insert({
           title: "Nueva conversación",
+          user_id: userId,
         })
         .select()
         .single();
