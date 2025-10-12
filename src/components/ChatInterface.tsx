@@ -4,11 +4,10 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { streamChat, Message } from "@/utils/chatStream";
 import ChatMessage from "./ChatMessage";
-import { Send, Globe, Image as ImageIcon, X, Menu } from "lucide-react";
+import { Send, Globe, Image as ImageIcon, X } from "lucide-react";
 import deepViewLogo from "@/assets/deepview-logo.png";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
-import { useSidebar } from "@/components/ui/sidebar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,7 +28,6 @@ const ChatInterface = ({ conversationId }: ChatInterfaceProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { language, setLanguage, t } = useLanguage();
-  const { toggleSidebar } = useSidebar();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -234,14 +232,6 @@ const ChatInterface = ({ conversationId }: ChatInterfaceProps) => {
         <div className="container max-w-4xl mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Button 
-                variant="ghost" 
-                size="icon"
-                onClick={toggleSidebar}
-                className="mr-2"
-              >
-                <Menu className="h-5 w-5" />
-              </Button>
               <div className="relative">
                 <img src={deepViewLogo} alt="DeepView Logo" className="w-12 h-12 rounded-full" />
                 <div className="absolute inset-0 blur-xl bg-primary/50 animate-pulse rounded-full" />
