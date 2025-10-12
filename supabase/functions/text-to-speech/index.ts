@@ -17,12 +17,16 @@ serve(async (req) => {
       throw new Error('Text is required');
     }
 
+    // Limit text length to avoid timeouts and API errors
+    const maxLength = 500;
+    const truncatedText = text.length > maxLength ? text.substring(0, maxLength) + "..." : text;
+
     const ELEVENLABS_API_KEY = Deno.env.get('ELEVENLABS_API_KEY');
     if (!ELEVENLABS_API_KEY) {
       throw new Error('ELEVENLABS_API_KEY not configured');
     }
 
-    console.log('Generating speech for text:', text.substring(0, 50), 'Language:', language);
+    console.log('Generating speech for text:', truncatedText.substring(0, 50), 'Language:', language);
 
     // Select model based on language - Turbo v2.5 supports 32 languages including Spanish
     const modelId = 'eleven_turbo_v2_5';
@@ -38,7 +42,7 @@ serve(async (req) => {
           'xi-api-key': ELEVENLABS_API_KEY,
         },
         body: JSON.stringify({
-          text,
+          text: truncatedText,
           model_id: modelId,
           voice_settings: {
             stability: 0.5,

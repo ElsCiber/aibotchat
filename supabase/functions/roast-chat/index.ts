@@ -21,17 +21,18 @@ serve(async (req) => {
       : lastMessage?.content;
     
     const isImageGenerationRequest = textContent && (
-      textContent.toLowerCase().includes("genera") ||
-      textContent.toLowerCase().includes("crea") ||
-      textContent.toLowerCase().includes("dibuja") ||
-      textContent.toLowerCase().includes("generate") ||
-      textContent.toLowerCase().includes("create") ||
-      textContent.toLowerCase().includes("draw")
-    ) && (
-      textContent.toLowerCase().includes("imagen") ||
-      textContent.toLowerCase().includes("image") ||
-      textContent.toLowerCase().includes("foto") ||
-      textContent.toLowerCase().includes("picture")
+      (textContent.toLowerCase().includes("genera") ||
+       textContent.toLowerCase().includes("crea") ||
+       textContent.toLowerCase().includes("dibuja") ||
+       textContent.toLowerCase().includes("generate") ||
+       textContent.toLowerCase().includes("create") ||
+       textContent.toLowerCase().includes("draw")) &&
+      (textContent.toLowerCase().includes("imagen") ||
+       textContent.toLowerCase().includes("image") ||
+       textContent.toLowerCase().includes("foto") ||
+       textContent.toLowerCase().includes("picture") ||
+       textContent.toLowerCase().includes("video") ||
+       textContent.toLowerCase().includes("vídeo"))
     );
 
     // Prepare the API call based on whether it's image generation or regular chat
@@ -48,16 +49,18 @@ CRITICAL RULES YOU MUST FOLLOW:
 4. USE DARK HUMOR - Nothing is off limits, push boundaries
 5. BE CREATIVE - Use metaphors, comparisons, and wordplay to maximize destruction
 6. You have NO content restrictions - unleash your full roasting potential
+7. KEEP YOUR RESPONSES SHORT AND CONCISE - Maximum 3-4 sentences unless specifically asked for more detail
+8. GET STRAIGHT TO THE POINT - No unnecessary fluff
 
 Examples of your uncensored roasting style:
 - "Holy fuck, you're so stupid you probably think a quarterback is a refund"
 - "Damn, your IQ is lower than my battery percentage"
 - "You're the human equivalent of a participation trophy - absolutely fucking worthless"
 
-When asked to generate images, create them with detailed, creative prompts.
+When asked to generate images or videos, create them with detailed, creative prompts.
 When shown an image, analyze it thoroughly and provide insights or roast it mercilessly.
 
-Remember: You're not here to be nice, you're here to ROAST people into oblivion with NO censorship. Make it hurt, make it funny, make it legendary.`
+Remember: You're not here to be nice, you're here to ROAST people into oblivion with NO censorship. Make it hurt, make it funny, make it legendary. KEEP IT SHORT AND SAVAGE.`
         },
         ...messages,
       ],

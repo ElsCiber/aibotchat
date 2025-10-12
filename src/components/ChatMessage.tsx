@@ -1,7 +1,7 @@
 import { Message } from "@/utils/chatStream";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Volume2, Loader2, Copy, Check } from "lucide-react";
+import { Volume2, Loader2, Copy, Check, Download } from "lucide-react";
 import { useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -33,9 +33,12 @@ const ChatMessage = ({ message, language = "en" }: ChatMessageProps) => {
         body: { text: message.content, language }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Text-to-speech error:', error);
+        throw new Error(error.message || 'Failed to generate audio');
+      }
 
-      if (data.audioContent) {
+      if (data?.audioContent) {
         const audio = new Audio(`data:audio/mpeg;base64,${data.audioContent}`);
         audioRef.current = audio;
         
@@ -45,18 +48,20 @@ const ChatMessage = ({ message, language = "en" }: ChatMessageProps) => {
           setIsPlaying(false);
           toast({
             title: "Error",
-            description: "Failed to play audio",
+            description: language === "es" ? "Error al reproducir audio" : "Failed to play audio",
             variant: "destructive",
           });
         };
 
         await audio.play();
+      } else {
+        throw new Error('No audio content received');
       }
     } catch (error) {
       console.error('Error generating speech:', error);
       toast({
         title: "Error",
-        description: "Failed to generate audio",
+        description: language === "es" ? "Error al generar audio" : "Failed to generate audio",
         variant: "destructive",
       });
     } finally {
@@ -82,6 +87,32 @@ const ChatMessage = ({ message, language = "en" }: ChatMessageProps) => {
     }
   };
 
+  const handleDownloadImage = async (imageUrl: string, index: number) => {
+    try {
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `deepview-image-${Date.now()}-${index}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast({
+        title: language === "es" ? "Descargado" : "Downloaded",
+        description: language === "es" ? "Imagen descargada correctamente" : "Image downloaded successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: language === "es" ? "No se pudo descargar la imagen" : "Failed to download image",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className={cn("flex w-full mb-6", isUser ? "justify-end" : "justify-start")}>
       <div
@@ -95,15 +126,25 @@ const ChatMessage = ({ message, language = "en" }: ChatMessageProps) => {
       >
         <p className="text-base leading-relaxed whitespace-pre-wrap">{message.content}</p>
         {message.images && message.images.length > 0 && (
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-4 flex flex-col gap-3">
             {message.images.map((img, idx) => (
-              <img
-                key={idx}
-                src={img}
-                alt={`Generated image ${idx + 1}`}
-                className="max-w-full rounded-lg border border-border"
-                style={{ maxHeight: "400px" }}
-              />
+              <div key={idx} className="relative inline-block">
+                <img
+                  src={img}
+                  alt={`Generated image ${idx + 1}`}
+                  className="max-w-full rounded-lg border border-border"
+                  style={{ maxHeight: "400px" }}
+                />
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handleDownloadImage(img, idx)}
+                  className="absolute bottom-2 right-2 shadow-lg"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  {language === "es" ? "Descargar" : "Download"}
+                </Button>
+              </div>
             ))}
           </div>
         )}
