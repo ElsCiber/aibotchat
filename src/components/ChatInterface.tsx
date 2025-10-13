@@ -67,7 +67,11 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
       .order("created_at", { ascending: true });
 
     if (error) {
-      console.error("Error loading messages:", error);
+      toast({
+        title: "Error",
+        description: "Unable to load messages. Please try again.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -91,7 +95,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
     });
 
     if (error) {
-      console.error("Error saving message:", error);
+      // Silent fail - message saving errors are handled in handleSend
     }
   };
 
@@ -106,7 +110,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
       .eq("id", conversationId);
 
     if (error) {
-      console.error("Error updating conversation title:", error);
+      // Silent fail - title update is non-critical
     }
   };
 
@@ -290,8 +294,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
               });
             }
           } catch (validationError) {
-            // Assistant message validation failed - just log, don't show to user
-            console.warn("Assistant message validation failed:", validationError);
+            // Assistant message validation failed - silent fail
           }
         }
       },

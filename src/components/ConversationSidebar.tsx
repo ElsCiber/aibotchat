@@ -73,7 +73,7 @@ export function ConversationSidebar({
       .order("updated_at", { ascending: false });
 
     if (error) {
-      console.error("Error loading conversations:", error);
+      // Silent fail - conversations will be empty
       return;
     }
 

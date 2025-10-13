@@ -36,7 +36,6 @@ const ChatMessage = ({ message, language = "en" }: ChatMessageProps) => {
       });
 
       if (error) {
-        console.error('Text-to-speech error:', error);
         throw new Error(error.message || 'Failed to generate audio');
       }
 
@@ -60,7 +59,6 @@ const ChatMessage = ({ message, language = "en" }: ChatMessageProps) => {
         throw new Error('No audio content received');
       }
     } catch (error) {
-      console.error('Error generating speech:', error);
       toast({
         title: "Error",
         description: language === "es" ? "Error al generar audio" : "Failed to generate audio",

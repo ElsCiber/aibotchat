@@ -46,7 +46,7 @@ const Index = () => {
       .single();
 
     if (error) {
-      console.error("Error creating conversation:", error);
+      // Silent fail - will be handled by ChatInterface
       return;
     }
 

@@ -126,7 +126,6 @@ export async function streamChat({
 
     onDone();
   } catch (e) {
-    console.error(e);
     onError(e instanceof Error ? e.message : "Something went wrong");
   }
 }
