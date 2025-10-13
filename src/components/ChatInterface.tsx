@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { streamChat, Message } from "@/utils/chatStream";
 import ChatMessage from "./ChatMessage";
+import { messageSchema, conversationTitleSchema } from "@/utils/validation";
 import { Send, Globe, Image as ImageIcon, X, Menu, LogOut } from "lucide-react";
 import deepViewLogo from "@/assets/deepview-logo.png";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -151,6 +152,23 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
       (inputLower.includes("imagen") || inputLower.includes("image") || inputLower.includes("foto") || inputLower.includes("picture"))
     );
     
+    // Validate user message before saving
+    try {
+      messageSchema.parse({
+        content: userMessage.content,
+        role: userMessage.role,
+        images: userMessage.images,
+      });
+    } catch (error) {
+      toast({
+        title: "Validation Error",
+        description: error instanceof Error ? error.message : "Invalid message format",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
+    }
+    
     setMessages((prev) => [...prev, userMessage]);
     
     // Save message with the active conversation ID
@@ -162,12 +180,25 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
     });
 
     if (saveError) {
-      console.error("Error saving message:", saveError);
+      toast({
+        title: "Error",
+        description: "Unable to save message. Please try again.",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      return;
     }
     
     // Update conversation title with first message
     if (messages.length === 0) {
-      const title = userMessage.content.slice(0, 50) + (userMessage.content.length > 50 ? "..." : "");
+      let title = userMessage.content.slice(0, 50) + (userMessage.content.length > 50 ? "..." : "");
+      
+      // Validate title length
+      try {
+        title = conversationTitleSchema.parse(title);
+      } catch {
+        title = "Nueva conversación";
+      }
       
       const { error: titleError } = await supabase
         .from("conversations")
@@ -175,7 +206,11 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
         .eq("id", activeConversationId);
 
       if (titleError) {
-        console.error("Error updating conversation title:", titleError);
+        toast({
+          title: "Error",
+          description: "Unable to update conversation title.",
+          variant: "destructive",
+        });
       }
     }
     
@@ -232,15 +267,31 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
         };
         
         if (activeConversationId) {
-          const { error } = await supabase.from("messages").insert({
-            conversation_id: activeConversationId,
-            role: assistantMessage.role,
-            content: assistantMessage.content,
-            images: assistantMessage.images || null,
-          });
+          // Validate assistant message
+          try {
+            messageSchema.parse({
+              content: assistantMessage.content,
+              role: assistantMessage.role,
+              images: assistantMessage.images,
+            });
+            
+            const { error } = await supabase.from("messages").insert({
+              conversation_id: activeConversationId,
+              role: assistantMessage.role,
+              content: assistantMessage.content,
+              images: assistantMessage.images || null,
+            });
 
-          if (error) {
-            console.error("Error saving message:", error);
+            if (error) {
+              toast({
+                title: "Error",
+                description: "Unable to save assistant response.",
+                variant: "destructive",
+              });
+            }
+          } catch (validationError) {
+            // Assistant message validation failed - just log, don't show to user
+            console.warn("Assistant message validation failed:", validationError);
           }
         }
       },
