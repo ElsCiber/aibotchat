@@ -17,7 +17,7 @@ const translations = {
   },
   es: {
     title: "DeepView",
-    subtitle: "Powered by Roast Bot (GPT-5)",
+    subtitle: "Desarrollado por Roast Bot (GPT-5)",
     placeholder: "Pregúntame lo que quieras...",
     welcome: "Bienvenido a DeepView",
   },

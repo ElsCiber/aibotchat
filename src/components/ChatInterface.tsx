@@ -340,6 +340,14 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
     setUploadedImages((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const handleAttachImage = (imageUrl: string) => {
+    setUploadedImages((prev) => [...prev, imageUrl]);
+    toast({
+      title: language === "es" ? "Imagen adjuntada" : "Image attached",
+      description: language === "es" ? "La imagen se ha añadido a tu mensaje" : "The image has been added to your message",
+    });
+  };
+
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -410,8 +418,24 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
           ) : (
             <>
               {messages.map((message, index) => (
-                <ChatMessage key={index} message={message} language={language} />
+                <ChatMessage 
+                  key={index} 
+                  message={message} 
+                  language={language}
+                  onAttachImage={handleAttachImage}
+                />
               ))}
+              {isLoading && (
+                <div className="flex gap-3 items-start mb-6">
+                  <div className="bg-card border border-border rounded-2xl px-6 py-4 shadow-lg">
+                    <div className="flex gap-1.5">
+                      <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                  </div>
+                </div>
+              )}
               <div ref={messagesEndRef} />
             </>
           )}

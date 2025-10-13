@@ -1,7 +1,7 @@
 import { Message } from "@/utils/chatStream";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Volume2, Loader2, Copy, Check, Download, X } from "lucide-react";
+import { Volume2, Loader2, Copy, Check, Download, X, ImagePlus } from "lucide-react";
 import { useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -10,9 +10,10 @@ import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 interface ChatMessageProps {
   message: Message;
   language?: string;
+  onAttachImage?: (imageUrl: string) => void;
 }
 
-const ChatMessage = ({ message, language = "en" }: ChatMessageProps) => {
+const ChatMessage = ({ message, language = "en", onAttachImage }: ChatMessageProps) => {
   const isUser = message.role === "user";
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -173,15 +174,28 @@ const ChatMessage = ({ message, language = "en" }: ChatMessageProps) => {
                     />
                   </DialogContent>
                 </Dialog>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => handleDownloadImage(img, idx)}
-                  className="absolute bottom-2 right-2 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  {language === "es" ? "Descargar" : "Download"}
-                </Button>
+                <div className="absolute bottom-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => handleDownloadImage(img, idx)}
+                    className="shadow-lg"
+                  >
+                    <Download className="h-4 w-4 mr-1" />
+                    {language === "es" ? "Descargar" : "Download"}
+                  </Button>
+                  {onAttachImage && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => onAttachImage(img)}
+                      className="shadow-lg"
+                    >
+                      <ImagePlus className="h-4 w-4 mr-1" />
+                      {language === "es" ? "Adjuntar" : "Attach"}
+                    </Button>
+                  )}
+                </div>
               </div>
             ))}
           </div>

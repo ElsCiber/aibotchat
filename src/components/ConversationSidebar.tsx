@@ -150,6 +150,8 @@ export function ConversationSidebar({
             </Button>
           </SidebarGroupLabel>
 
+          <div className="h-6" />
+
           <SidebarGroupContent>
             <SidebarMenu>
               {conversations.map((conversation) => (
