@@ -222,14 +222,6 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
     setUploadedImages([]);
     setIsLoading(true);
 
-    // Add "Generating image..." message if it's an image generation request
-    if (isImageGenRequest) {
-      setMessages((prev) => [...prev, { 
-        role: "assistant", 
-        content: language === "es" ? "Generando imagen..." : "Generating image..." 
-      }]);
-    }
-
     let assistantContent = "";
     let assistantImages: string[] = [];
     const upsertAssistant = (chunk: string) => {
