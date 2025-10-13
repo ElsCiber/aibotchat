@@ -148,14 +148,6 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
       images: uploadedImages.length > 0 ? [...uploadedImages] : undefined
     };
     
-    // Detect image generation request
-    const inputLower = input.toLowerCase();
-    const isImageGenRequest = (
-      (inputLower.includes("genera") || inputLower.includes("crea") || inputLower.includes("dibuja") ||
-       inputLower.includes("generate") || inputLower.includes("create") || inputLower.includes("draw")) &&
-      (inputLower.includes("imagen") || inputLower.includes("image") || inputLower.includes("foto") || inputLower.includes("picture"))
-    );
-    
     // Validate user message before saving
     try {
       messageSchema.parse({
