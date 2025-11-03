@@ -6,11 +6,13 @@ export type Message = {
 
 export async function streamChat({
   messages,
+  mode = "roast",
   onDelta,
   onDone,
   onError,
 }: {
   messages: Message[];
+  mode?: "roast" | "formal";
   onDelta: (deltaText: string) => void;
   onDone: () => void;
   onError: (error: string) => void;
@@ -41,7 +43,7 @@ export async function streamChat({
         "Content-Type": "application/json",
         Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
       },
-      body: JSON.stringify({ messages: transformedMessages }),
+      body: JSON.stringify({ messages: transformedMessages, mode }),
     });
 
     if (!resp.ok) {

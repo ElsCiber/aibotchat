@@ -29,6 +29,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [mode, setMode] = useState<"roast" | "formal">("roast");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -244,6 +245,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
 
     await streamChat({
       messages: [...messages, userMessage],
+      mode,
       onDelta: (chunk) => upsertAssistant(chunk),
       onDone: async () => {
         setIsLoading(false);
@@ -366,6 +368,24 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-card border border-border">
+                <Button
+                  variant={mode === "roast" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setMode("roast")}
+                  className="text-xs"
+                >
+                  🔥 Roast
+                </Button>
+                <Button
+                  variant={mode === "formal" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setMode("formal")}
+                  className="text-xs"
+                >
+                  💼 Formal
+                </Button>
+              </div>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon">
