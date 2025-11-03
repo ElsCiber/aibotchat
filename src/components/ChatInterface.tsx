@@ -368,31 +368,34 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-card border border-border">
-                <Button
-                  variant={mode === "roast" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setMode("roast")}
-                  className="text-xs"
-                >
-                  🔥 Roast
-                </Button>
-                <Button
-                  variant={mode === "formal" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setMode("formal")}
-                  className="text-xs"
-                >
-                  💼 Formal
-                </Button>
-              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    {mode === "roast" ? "🔥 Roast" : "💼 Formal"}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="bg-card">
+                  <DropdownMenuItem 
+                    onClick={() => setMode("roast")}
+                    className={mode === "roast" ? "bg-muted" : ""}
+                  >
+                    🔥 Roast Mode
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setMode("formal")}
+                    className={mode === "formal" ? "bg-muted" : ""}
+                  >
+                    💼 Formal Mode
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon">
                     <Globe className="h-5 w-5" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
+                <DropdownMenuContent align="end" className="bg-card">
                   <DropdownMenuItem onClick={() => setLanguage("en")}>
                     🇬🇧 English
                   </DropdownMenuItem>
