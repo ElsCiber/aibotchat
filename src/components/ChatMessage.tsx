@@ -6,6 +6,8 @@ import { useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import ReactMarkdown from "react-markdown";
+import CodeBlock from "./CodeBlock";
 
 interface ChatMessageProps {
   message: Message;
@@ -125,7 +127,31 @@ const ChatMessage = ({ message, language = "en", onAttachImage }: ChatMessagePro
         )}
         style={isUser ? { boxShadow: "var(--shadow-glow)" } : {}}
       >
-        <p className="text-base leading-relaxed whitespace-pre-wrap">{message.content}</p>
+        <div className="text-base leading-relaxed prose prose-invert max-w-none">
+          <ReactMarkdown
+            components={{
+              code({ node, inline, className, children, ...props }: any) {
+                const match = /language-(\w+)/.exec(className || "");
+                const codeContent = String(children).replace(/\n$/, "");
+                
+                return !inline && match ? (
+                  <CodeBlock language={match[1]}>
+                    {codeContent}
+                  </CodeBlock>
+                ) : (
+                  <code className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono" {...props}>
+                    {children}
+                  </code>
+                );
+              },
+              p: ({ children }) => <p className="mb-2">{children}</p>,
+              strong: ({ children }) => <strong className="font-bold">{children}</strong>,
+              em: ({ children }) => <em className="italic">{children}</em>,
+            }}
+          >
+            {message.content}
+          </ReactMarkdown>
+        </div>
         
         {/* User uploaded images - no download button */}
         {isUser && message.images && message.images.length > 0 && (
