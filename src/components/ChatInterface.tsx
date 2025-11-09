@@ -29,7 +29,10 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
-  const [mode, setMode] = useState<"roast" | "formal" | "developer">("roast");
+  const [mode, setMode] = useState<"formal" | "developer">(() => {
+    const savedMode = localStorage.getItem("chatMode");
+    return (savedMode === "developer" ? "developer" : "formal") as "formal" | "developer";
+  });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -367,27 +370,27 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-2">
-                    {mode === "roast" ? "🔥 Roast" : mode === "formal" ? "💼 Formal" : "⚙️ Developer"}
+                    {mode === "formal" ? "💼 Normal" : "⚙️ Developer"}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="bg-card">
                   <DropdownMenuItem 
-                    onClick={() => setMode("roast")}
-                    className={mode === "roast" ? "bg-muted" : ""}
-                  >
-                    🔥 Roast Mode
-                  </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    onClick={() => setMode("formal")}
+                    onClick={() => {
+                      setMode("formal");
+                      localStorage.setItem("chatMode", "formal");
+                    }}
                     className={mode === "formal" ? "bg-muted" : ""}
                   >
-                    💼 Formal Mode
+                    💼 Normal
                   </DropdownMenuItem>
                   <DropdownMenuItem 
-                    onClick={() => setMode("developer")}
+                    onClick={() => {
+                      setMode("developer");
+                      localStorage.setItem("chatMode", "developer");
+                    }}
                     className={mode === "developer" ? "bg-muted" : ""}
                   >
-                    ⚙️ Developer Mode
+                    ⚙️ Developer
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
