@@ -6,11 +6,15 @@ import { streamChat, Message } from "@/utils/chatStream";
 import ChatMessage from "./ChatMessage";
 import { messageSchema, conversationTitleSchema } from "@/utils/validation";
 import { Send, Globe, Image as ImageIcon, X, Menu, LogOut, Paperclip } from "lucide-react";
+import { Logo } from "@/components/Logo";
 import deepViewLogo from "@/assets/deepview-logo.png";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { ThemeSelector } from "@/components/ThemeSelector";
+import { ModeToggle } from "@/components/ModeToggle";
 import { ExportButton } from "@/components/ExportButton";
 import { PdfPreview } from "@/components/PdfPreview";
+import { VoiceRecorder } from "@/components/VoiceRecorder";
+import { TagManager } from "@/components/TagManager";
 import { supabase } from "@/integrations/supabase/client";
 import { useSidebar } from "@/components/ui/sidebar";
 import { useNavigate } from "react-router-dom";
@@ -427,24 +431,26 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
       {/* Header */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm">
         <div className="container max-w-4xl mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={toggleSidebar}
-                className="md:hidden"
-              >
-                <Menu className="h-5 w-5" />
-              </Button>
-              <div>
-                <h1 className="text-3xl font-bold bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
-                  {t("title")}
-                </h1>
-                <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={toggleSidebar}
+                  className="md:hidden"
+                >
+                  <Menu className="h-5 w-5" />
+                </Button>
+                <Logo className="w-10 h-10" />
+                <div>
+                  <h1 className="text-2xl font-bold bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
+                    {t("title")}
+                  </h1>
+                  <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-2">
@@ -472,6 +478,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+              <ModeToggle />
               <ThemeSelector />
               <ExportButton conversationId={conversationId} />
               <DropdownMenu>
@@ -493,6 +500,12 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
                 <LogOut className="h-5 w-5" />
               </Button>
             </div>
+            </div>
+            {conversationId && (
+              <div className="mt-2">
+                <TagManager conversationId={conversationId} />
+              </div>
+            )}
           </div>
         </div>
       </header>
@@ -598,6 +611,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
             >
               <Paperclip className="h-5 w-5" />
             </Button>
+            <VoiceRecorder onTranscript={(text) => setInput(prev => prev + " " + text)} />
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
