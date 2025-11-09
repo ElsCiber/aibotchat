@@ -11,13 +11,13 @@ interface LanguageContextType {
 const translations = {
   en: {
     title: "DeepView",
-    subtitle: "Powered by Roast Bot (GPT-5)",
+    subtitle: "Powered by ElsCiber",
     placeholder: "Ask me anything...",
     welcome: "Welcome to DeepView",
   },
   es: {
     title: "DeepView",
-    subtitle: "Desarrollado por Roast Bot (GPT-5)",
+    subtitle: "Desarrollado por ElsCiber",
     placeholder: "Pregúntame lo que quieras...",
     welcome: "Bienvenido a DeepView",
   },

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { MessageSquare, Plus, Trash2 } from "lucide-react";
+import { MessageSquare, Plus, Trash2, Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import {
   Sidebar,
   SidebarContent,
@@ -37,10 +38,15 @@ export function ConversationSidebar({
   onNewConversation,
 }: ConversationSidebarProps) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const { state } = useSidebar();
   const { language } = useLanguage();
   const { toast } = useToast();
   const isCollapsed = state === "collapsed";
+
+  const filteredConversations = conversations.filter((conv) =>
+    conv.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   useEffect(() => {
     loadConversations();
@@ -150,11 +156,25 @@ export function ConversationSidebar({
             </Button>
           </SidebarGroupLabel>
 
-          <div className="h-6" />
+          {!isCollapsed && (
+            <div className="px-4 py-2">
+              <div className="relative">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder={language === "es" ? "Buscar conversaciones..." : "Search conversations..."}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-8"
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="h-2" />
 
           <SidebarGroupContent>
             <SidebarMenu>
-              {conversations.map((conversation) => (
+              {filteredConversations.map((conversation) => (
                 <SidebarMenuItem key={conversation.id}>
                   <SidebarMenuButton
                     onClick={() => onConversationChange(conversation.id)}

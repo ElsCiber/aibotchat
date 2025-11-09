@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { streamChat, Message } from "@/utils/chatStream";
 import ChatMessage from "./ChatMessage";
 import { messageSchema, conversationTitleSchema } from "@/utils/validation";
-import { Send, Globe, Image as ImageIcon, X, Menu, LogOut } from "lucide-react";
+import { Send, Globe, Image as ImageIcon, X, Menu, LogOut, Paperclip, FileText } from "lucide-react";
 import deepViewLogo from "@/assets/deepview-logo.png";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,12 +29,14 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<Array<{name: string, content: string, type: string}>>([]);
   const [mode, setMode] = useState<"formal" | "developer">(() => {
     const savedMode = localStorage.getItem("chatMode");
     return (savedMode === "developer" ? "developer" : "formal") as "formal" | "developer";
   });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const documentInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const { language, setLanguage, t } = useLanguage();
   const { toggleSidebar } = useSidebar();
@@ -146,9 +148,23 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
       onConversationCreated(data.id);
     }
 
+    let messageContent = input.trim();
+    
+    // Add file contents to message if any
+    if (uploadedFiles.length > 0) {
+      const fileContents = uploadedFiles.map(file => 
+        `\n\n[Archivo: ${file.name}]\n${file.content}`
+      ).join('');
+      messageContent = messageContent ? messageContent + fileContents : fileContents.substring(2);
+    }
+    
+    if (!messageContent && uploadedImages.length === 0) {
+      messageContent = language === "es" ? "¿Qué ves en esta imagen?" : "What do you see in this image?";
+    }
+    
     const userMessage: Message = { 
       role: "user", 
-      content: input.trim() || (language === "es" ? "¿Qué ves en esta imagen?" : "What do you see in this image?"),
+      content: messageContent,
       images: uploadedImages.length > 0 ? [...uploadedImages] : undefined
     };
     
@@ -216,6 +232,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
     
     setInput("");
     setUploadedImages([]);
+    setUploadedFiles([]);
     setIsLoading(true);
 
     let assistantContent = "";
@@ -327,6 +344,45 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
 
   const removeImage = (index: number) => {
     setUploadedImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    for (const file of Array.from(files)) {
+      if (file.size > 20 * 1024 * 1024) {
+        toast({
+          title: "Error",
+          description: language === "es" ? "El archivo es demasiado grande (max 20MB)" : "File too large (max 20MB)",
+          variant: "destructive",
+        });
+        continue;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target?.result as string;
+        setUploadedFiles((prev) => [...prev, {
+          name: file.name,
+          content: content,
+          type: file.type
+        }]);
+        toast({
+          title: language === "es" ? "Archivo cargado" : "File uploaded",
+          description: file.name,
+        });
+      };
+      reader.readAsText(file);
+    }
+
+    if (documentInputRef.current) {
+      documentInputRef.current.value = "";
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleAttachImage = (imageUrl: string) => {
@@ -457,10 +513,10 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
       {/* Input */}
       <div className="border-t border-border bg-card/50 backdrop-blur-sm">
         <div className="container max-w-4xl mx-auto px-4 py-6">
-          {uploadedImages.length > 0 && (
+          {(uploadedImages.length > 0 || uploadedFiles.length > 0) && (
             <div className="flex gap-2 mb-3 flex-wrap">
               {uploadedImages.map((img, idx) => (
-                <div key={idx} className="relative">
+                <div key={`img-${idx}`} className="relative">
                   <img
                     src={img}
                     alt={`Upload ${idx + 1}`}
@@ -469,6 +525,18 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
                   <button
                     onClick={() => removeImage(idx)}
                     className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 hover:bg-destructive/90"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+              {uploadedFiles.map((file, idx) => (
+                <div key={`file-${idx}`} className="relative flex items-center gap-2 px-3 py-2 bg-muted rounded-lg border border-border">
+                  <FileText className="h-4 w-4" />
+                  <span className="text-sm truncate max-w-[150px]">{file.name}</span>
+                  <button
+                    onClick={() => removeFile(idx)}
+                    className="ml-2 text-destructive hover:text-destructive/90"
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -485,13 +553,31 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
               onChange={handleImageUpload}
               className="hidden"
             />
+            <input
+              ref={documentInputRef}
+              type="file"
+              accept=".pdf,.doc,.docx,.txt,.md"
+              multiple
+              onChange={handleDocumentUpload}
+              className="hidden"
+            />
             <Button
               variant="outline"
               size="icon"
               onClick={() => fileInputRef.current?.click()}
               disabled={isLoading}
+              title={language === "es" ? "Adjuntar imagen" : "Attach image"}
             >
               <ImageIcon className="h-5 w-5" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => documentInputRef.current?.click()}
+              disabled={isLoading}
+              title={language === "es" ? "Adjuntar documento" : "Attach document"}
+            >
+              <Paperclip className="h-5 w-5" />
             </Button>
             <Input
               value={input}
@@ -503,7 +589,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
             />
             <Button
               onClick={handleSend}
-              disabled={isLoading || (!input.trim() && uploadedImages.length === 0)}
+              disabled={isLoading || (!input.trim() && uploadedImages.length === 0 && uploadedFiles.length === 0)}
               className="bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90"
             >
               <Send className="w-5 h-5" />

@@ -1,8 +1,8 @@
 import { Message } from "@/utils/chatStream";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Volume2, Loader2, Copy, Check, Download, X, ImagePlus } from "lucide-react";
-import { useState, useRef } from "react";
+import { Copy, Check, Download, ImagePlus } from "lucide-react";
+import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
@@ -17,60 +17,9 @@ interface ChatMessageProps {
 
 const ChatMessage = ({ message, language = "en", onAttachImage }: ChatMessageProps) => {
   const isUser = message.role === "user";
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
   const { toast } = useToast();
-
-  const handlePlayAudio = async () => {
-    if (isPlaying && audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-      setIsPlaying(false);
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('text-to-speech', {
-        body: { text: message.content, language }
-      });
-
-      if (error) {
-        throw new Error(error.message || 'Failed to generate audio');
-      }
-
-      if (data?.audioContent) {
-        const audio = new Audio(`data:audio/mpeg;base64,${data.audioContent}`);
-        audioRef.current = audio;
-        
-        audio.onplay = () => setIsPlaying(true);
-        audio.onended = () => setIsPlaying(false);
-        audio.onerror = () => {
-          setIsPlaying(false);
-          toast({
-            title: "Error",
-            description: language === "es" ? "Error al reproducir audio" : "Failed to play audio",
-            variant: "destructive",
-          });
-        };
-
-        await audio.play();
-      } else {
-        throw new Error('No audio content received');
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: language === "es" ? "Error al generar audio" : "Failed to generate audio",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleCopy = async () => {
     try {
@@ -238,19 +187,6 @@ const ChatMessage = ({ message, language = "en", onAttachImage }: ChatMessagePro
                 <Check className="h-4 w-4 text-primary" />
               ) : (
                 <Copy className="h-4 w-4" />
-              )}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handlePlayAudio}
-              disabled={isLoading}
-              className="h-8 px-2"
-            >
-              {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Volume2 className={cn("h-4 w-4", isPlaying && "text-primary")} />
               )}
             </Button>
           </div>
