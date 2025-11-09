@@ -356,10 +356,6 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
               >
                 <Menu className="h-5 w-5" />
               </Button>
-              <div className="relative">
-                <img src={deepViewLogo} alt="DeepView Logo" className="w-12 h-12 rounded-full" />
-                <div className="absolute inset-0 blur-xl bg-primary/50 animate-pulse rounded-full" />
-              </div>
               <div>
                 <h1 className="text-3xl font-bold bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
                   {t("title")}
