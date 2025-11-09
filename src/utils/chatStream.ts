@@ -12,7 +12,7 @@ export async function streamChat({
   onError,
 }: {
   messages: Message[];
-  mode?: "roast" | "formal";
+  mode?: "roast" | "formal" | "developer";
   onDelta: (deltaText: string) => void;
   onDone: () => void;
   onError: (error: string) => void;

@@ -29,7 +29,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
-  const [mode, setMode] = useState<"roast" | "formal">("roast");
+  const [mode, setMode] = useState<"roast" | "formal" | "developer">("roast");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -371,7 +371,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-2">
-                    {mode === "roast" ? "🔥 Roast" : "💼 Formal"}
+                    {mode === "roast" ? "🔥 Roast" : mode === "formal" ? "💼 Formal" : "⚙️ Developer"}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="bg-card">
@@ -386,6 +386,12 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
                     className={mode === "formal" ? "bg-muted" : ""}
                   >
                     💼 Formal Mode
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setMode("developer")}
+                    className={mode === "developer" ? "bg-muted" : ""}
+                  >
+                    ⚙️ Developer Mode
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
