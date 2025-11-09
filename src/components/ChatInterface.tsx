@@ -5,9 +5,12 @@ import { useToast } from "@/hooks/use-toast";
 import { streamChat, Message } from "@/utils/chatStream";
 import ChatMessage from "./ChatMessage";
 import { messageSchema, conversationTitleSchema } from "@/utils/validation";
-import { Send, Globe, Image as ImageIcon, X, Menu, LogOut, Paperclip, FileText } from "lucide-react";
+import { Send, Globe, Image as ImageIcon, X, Menu, LogOut, Paperclip } from "lucide-react";
 import deepViewLogo from "@/assets/deepview-logo.png";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { ThemeSelector } from "@/components/ThemeSelector";
+import { ExportButton } from "@/components/ExportButton";
+import { PdfPreview } from "@/components/PdfPreview";
 import { supabase } from "@/integrations/supabase/client";
 import { useSidebar } from "@/components/ui/sidebar";
 import { useNavigate } from "react-router-dom";
@@ -360,20 +363,39 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
         continue;
       }
 
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const content = event.target?.result as string;
-        setUploadedFiles((prev) => [...prev, {
-          name: file.name,
-          content: content,
-          type: file.type
-        }]);
-        toast({
-          title: language === "es" ? "Archivo cargado" : "File uploaded",
-          description: file.name,
-        });
-      };
-      reader.readAsText(file);
+      // Handle PDF files
+      if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const content = event.target?.result as string;
+          setUploadedFiles((prev) => [...prev, {
+            name: file.name,
+            content: content,
+            type: file.type || "application/pdf"
+          }]);
+          toast({
+            title: language === "es" ? "PDF cargado" : "PDF loaded",
+            description: file.name,
+          });
+        };
+        reader.readAsDataURL(file);
+      } else {
+        // Handle text files
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const content = event.target?.result as string;
+          setUploadedFiles((prev) => [...prev, {
+            name: file.name,
+            content: content,
+            type: file.type
+          }]);
+          toast({
+            title: language === "es" ? "Archivo cargado" : "File loaded",
+            description: file.name,
+          });
+        };
+        reader.readAsText(file);
+      }
     }
 
     if (documentInputRef.current) {
@@ -450,6 +472,8 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+              <ThemeSelector />
+              <ExportButton conversationId={conversationId} />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon">
@@ -531,16 +555,11 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
                 </div>
               ))}
               {uploadedFiles.map((file, idx) => (
-                <div key={`file-${idx}`} className="relative flex items-center gap-2 px-3 py-2 bg-muted rounded-lg border border-border">
-                  <FileText className="h-4 w-4" />
-                  <span className="text-sm truncate max-w-[150px]">{file.name}</span>
-                  <button
-                    onClick={() => removeFile(idx)}
-                    className="ml-2 text-destructive hover:text-destructive/90"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
+                <PdfPreview
+                  key={`file-${idx}`}
+                  file={file}
+                  onRemove={() => removeFile(idx)}
+                />
               ))}
             </div>
           )}
