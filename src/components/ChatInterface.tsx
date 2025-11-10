@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, startTransition, useDeferredValue, memo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -64,6 +64,8 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
   useEffect(() => {
     onConversationCreatedRef.current = onConversationCreated;
   }, [onConversationCreated]);
+  
+  const deferredMessages = useDeferredValue(messages);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -318,6 +320,23 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
 
     let assistantContent = "";
     let assistantImages: string[] = [];
+    let scheduled = false;
+    const flushAssistant = () => {
+      startTransition(() => {
+        setMessages((prev) => {
+          const last = prev[prev.length - 1];
+          if (last?.role === "assistant") {
+            return prev.map((m, i) =>
+              i === prev.length - 1 
+                ? { ...m, content: assistantContent, images: assistantImages.length > 0 ? assistantImages : undefined } 
+                : m
+            );
+          }
+          return [...prev, { role: "assistant", content: assistantContent, images: assistantImages.length > 0 ? assistantImages : undefined }];
+        });
+      });
+      scheduled = false;
+    };
     const upsertAssistant = (chunk: string) => {
       // Check if chunk contains image data
       try {
@@ -330,18 +349,10 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
         // Not JSON, regular text content
         assistantContent += chunk;
       }
-      
-      setMessages((prev) => {
-        const last = prev[prev.length - 1];
-        if (last?.role === "assistant") {
-          return prev.map((m, i) =>
-            i === prev.length - 1 
-              ? { ...m, content: assistantContent, images: assistantImages.length > 0 ? assistantImages : undefined } 
-              : m
-          );
-        }
-        return [...prev, { role: "assistant", content: assistantContent, images: assistantImages.length > 0 ? assistantImages : undefined }];
-      });
+      if (!scheduled) {
+        scheduled = true;
+        requestAnimationFrame(flushAssistant);
+      }
     };
 
     await streamChat({
@@ -597,7 +608,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
             </div>
           ) : (
             <>
-              {messages.map((message, index) => (
+              {deferredMessages.map((message, index) => (
                 <ChatMessage 
                   key={index} 
                   message={message} 
