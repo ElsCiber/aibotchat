@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -11,7 +11,6 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { SettingsDialog } from "@/components/SettingsDialog";
 import { ExportButton } from "@/components/ExportButton";
 import { PdfPreview } from "@/components/PdfPreview";
-import { TagManager } from "@/components/TagManager";
 import { FolderManager } from "@/components/FolderManager";
 
 import { ModeSelector } from "@/components/ModeSelector";
@@ -183,7 +182,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
     }
   };
 
-  const handleSend = async () => {
+  const handleSend = useCallback(async () => {
     if ((!input.trim() && uploadedImages.length === 0) || isLoading) return;
 
     // Create conversation if none exists
@@ -349,24 +348,27 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
               images: assistantMessage.images,
             });
             
-            const { error } = await supabase.from("messages").insert({
+            await supabase.from("messages").insert({
               conversation_id: activeConversationId,
               role: assistantMessage.role,
               content: assistantMessage.content,
               images: assistantMessage.images || null,
             });
-
-            if (error) {
-              toast({
-                title: "Error",
-                description: "Unable to save assistant response.",
-                variant: "destructive",
-              });
-            }
-          } catch (validationError) {
-            // Assistant message validation failed - silent fail
+          } catch (error) {
+            console.error("Error saving assistant message:", error);
           }
         }
+
+        // Update conversation's updated_at timestamp
+        if (activeConversationId) {
+          await supabase
+            .from("conversations")
+            .update({ updated_at: new Date().toISOString() })
+            .eq("id", activeConversationId);
+        }
+        
+        // Trigger conversation list refresh
+        window.dispatchEvent(new CustomEvent('conversations:refresh'));
       },
       onError: (error) => {
         setIsLoading(false);
@@ -377,7 +379,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
         });
       },
     });
-  };
+  }, [input, uploadedImages, uploadedFiles, isLoading, conversationId, userId, mode, messages, language, toast, onConversationCreated]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -476,12 +478,16 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
     });
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setInput(e.target.value);
+  }, []);
+
+  const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
-  };
+  }, [handleSend]);
 
   return (
     <div className="flex flex-col h-screen bg-gradient-to-b from-background to-card">
@@ -532,9 +538,8 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
             </div>
             </div>
             {conversationId && (
-              <div className="mt-2 flex gap-2 flex-wrap">
+              <div className="mt-2">
                 <FolderManager conversationId={conversationId} />
-                <TagManager conversationId={conversationId} />
               </div>
             )}
           </div>
@@ -670,7 +675,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
             </Button>
             <Input
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={handleInputChange}
               onKeyDown={handleKeyPress}
               placeholder={t("placeholder")}
               disabled={isLoading}
