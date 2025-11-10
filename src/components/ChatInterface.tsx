@@ -13,7 +13,7 @@ import { ExportButton } from "@/components/ExportButton";
 import { PdfPreview } from "@/components/PdfPreview";
 import { TagManager } from "@/components/TagManager";
 import { FolderManager } from "@/components/FolderManager";
-import { KeyboardShortcutsHelp } from "@/components/KeyboardShortcutsHelp";
+
 import { ModeSelector } from "@/components/ModeSelector";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { supabase } from "@/integrations/supabase/client";
@@ -524,7 +524,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <KeyboardShortcutsHelp />
+              
               <SettingsDialog />
               <Button variant="ghost" size="icon" onClick={handleLogout}>
                 <LogOut className="h-5 w-5" />
@@ -671,7 +671,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyPress={handleKeyPress}
+              onKeyDown={handleKeyPress}
               placeholder={t("placeholder")}
               disabled={isLoading}
               className="flex-1 bg-background border-border focus-visible:ring-primary"

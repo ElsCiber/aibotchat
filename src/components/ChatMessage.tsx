@@ -2,7 +2,7 @@ import { Message } from "@/utils/chatStream";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Copy, Check, Download, ImagePlus } from "lucide-react";
-import { useState } from "react";
+import { useState, memo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
@@ -196,4 +196,4 @@ const ChatMessage = ({ message, language = "en", onAttachImage }: ChatMessagePro
   );
 };
 
-export default ChatMessage;
+export default memo(ChatMessage);

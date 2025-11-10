@@ -120,7 +120,11 @@ export function ConversationSidebar({
       )
       .subscribe();
 
+    const handleRefresh = () => loadConversations();
+    window.addEventListener('conversations:refresh', handleRefresh);
+
     return () => {
+      window.removeEventListener('conversations:refresh', handleRefresh);
       supabase.removeChannel(channel);
     };
   }, []);
@@ -169,10 +173,11 @@ export function ConversationSidebar({
       });
       return;
     }
-
     if (currentConversationId === id) {
       onNewConversation();
     }
+
+    loadConversations();
 
     toast({
       title: language === "es" ? "Conversación eliminada" : "Conversation deleted",
@@ -195,6 +200,7 @@ export function ConversationSidebar({
       });
       return;
     }
+    loadConversations();
 
     toast({
       title: language === "es" ? "Modo cambiado" : "Mode changed",
