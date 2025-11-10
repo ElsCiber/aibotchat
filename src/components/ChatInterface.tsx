@@ -13,6 +13,8 @@ import { ExportButton } from "@/components/ExportButton";
 import { PdfPreview } from "@/components/PdfPreview";
 import { TagManager } from "@/components/TagManager";
 import { FolderManager } from "@/components/FolderManager";
+import { KeyboardShortcutsHelp } from "@/components/KeyboardShortcutsHelp";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { supabase } from "@/integrations/supabase/client";
 import { useSidebar } from "@/components/ui/sidebar";
 import { useNavigate } from "react-router-dom";
@@ -51,6 +53,28 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
     await supabase.auth.signOut();
     navigate("/auth");
   };
+
+  // Keyboard shortcuts
+  useKeyboardShortcuts([
+    {
+      key: "n",
+      ctrlKey: true,
+      action: () => {
+        if (!conversationId) {
+          // Already on a new conversation
+          return;
+        }
+        onConversationCreated("");
+      },
+      description: language === "es" ? "Nueva conversación" : "New conversation",
+    },
+    {
+      key: "b",
+      ctrlKey: true,
+      action: () => toggleSidebar(),
+      description: language === "es" ? "Alternar sidebar" : "Toggle sidebar",
+    },
+  ]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -492,6 +516,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+              <KeyboardShortcutsHelp />
               <SettingsDialog />
               <Button variant="ghost" size="icon" onClick={handleLogout}>
                 <LogOut className="h-5 w-5" />
@@ -512,10 +537,26 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
       <div className="flex-1 overflow-y-auto">
         <div className="container max-w-4xl mx-auto px-4 py-8">
           {messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center space-y-4">
+            <div className="flex flex-col items-center justify-center h-full text-center space-y-6">
               <Logo className="w-32 h-32 opacity-70" />
-              <div>
-                <h2 className="text-2xl font-bold text-foreground mb-2">{t("welcome")}</h2>
+              <div className="space-y-2">
+                <h2 className="text-3xl font-bold text-foreground">{t("welcome")}</h2>
+                <p className="text-lg text-muted-foreground max-w-md">
+                  {language === "es" 
+                    ? "Pregunta lo que quieras. Puedo ayudarte con información, análisis y mucho más." 
+                    : "Ask me anything. I can help you with information, analysis, and much more."}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2 justify-center max-w-2xl">
+                <div className="px-3 py-2 bg-muted/50 rounded-lg text-sm text-muted-foreground">
+                  💡 {language === "es" ? "Adjunta imágenes y documentos" : "Attach images and documents"}
+                </div>
+                <div className="px-3 py-2 bg-muted/50 rounded-lg text-sm text-muted-foreground">
+                  🎨 {language === "es" ? "Cambia el tema de color" : "Change color theme"}
+                </div>
+                <div className="px-3 py-2 bg-muted/50 rounded-lg text-sm text-muted-foreground">
+                  📁 {language === "es" ? "Organiza en carpetas" : "Organize in folders"}
+                </div>
               </div>
             </div>
           ) : (

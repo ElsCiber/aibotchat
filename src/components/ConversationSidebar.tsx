@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { MessageSquare, Plus, Trash2, Search, Folder } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import {
   Sidebar,
   SidebarContent,
@@ -55,10 +56,24 @@ export function ConversationSidebar({
   const [folders, setFolders] = useState<FolderType[]>([]);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchInputRef, setSearchInputRef] = useState<HTMLInputElement | null>(null);
   const { state } = useSidebar();
   const { language } = useLanguage();
   const { toast } = useToast();
   const isCollapsed = state === "collapsed";
+
+  // Keyboard shortcuts
+  useKeyboardShortcuts([
+    {
+      key: "k",
+      ctrlKey: true,
+      action: () => {
+        searchInputRef?.focus();
+        searchInputRef?.select();
+      },
+      description: language === "es" ? "Buscar conversaciones" : "Search conversations",
+    },
+  ]);
 
   const filteredConversations = conversations.filter((conv) => {
     const matchesSearch = conv.title.toLowerCase().includes(searchQuery.toLowerCase());
@@ -234,7 +249,8 @@ export function ConversationSidebar({
               <div className="relative">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder={language === "es" ? "Buscar conversaciones..." : "Search conversations..."}
+                  ref={setSearchInputRef}
+                  placeholder={language === "es" ? "Buscar... (Ctrl+K)" : "Search... (Ctrl+K)"}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-8"
