@@ -14,6 +14,7 @@ import { PdfPreview } from "@/components/PdfPreview";
 import { TagManager } from "@/components/TagManager";
 import { FolderManager } from "@/components/FolderManager";
 import { KeyboardShortcutsHelp } from "@/components/KeyboardShortcutsHelp";
+import { ModeSelector } from "@/components/ModeSelector";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { supabase } from "@/integrations/supabase/client";
 import { useSidebar } from "@/components/ui/sidebar";
@@ -37,10 +38,8 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
   const [isLoading, setIsLoading] = useState(false);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [uploadedFiles, setUploadedFiles] = useState<Array<{name: string, content: string, type: string}>>([]);
-  const [mode, setMode] = useState<"formal" | "developer">(() => {
-    const savedMode = localStorage.getItem("chatMode");
-    return (savedMode === "developer" ? "developer" : "formal") as "formal" | "developer";
-  });
+  const [mode, setMode] = useState<"formal" | "developer" | null>(null);
+  const [isLoadingMode, setIsLoadingMode] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
@@ -87,10 +86,29 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
   useEffect(() => {
     if (conversationId) {
       loadMessages();
+      loadConversationMode();
     } else {
       setMessages([]);
+      setMode(null);
+      setIsLoadingMode(false);
     }
   }, [conversationId]);
+
+  const loadConversationMode = async () => {
+    if (!conversationId) return;
+    
+    setIsLoadingMode(true);
+    const { data, error } = await supabase
+      .from("conversations")
+      .select("mode")
+      .eq("id", conversationId)
+      .single();
+
+    if (!error && data) {
+      setMode(data.mode as "formal" | "developer");
+    }
+    setIsLoadingMode(false);
+  };
 
   const loadMessages = async () => {
     if (!conversationId) return;
@@ -149,6 +167,22 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
     }
   };
 
+  const handleModeSelect = async (selectedMode: "formal" | "developer") => {
+    setMode(selectedMode);
+    
+    // If we have a conversation ID, update it in the database
+    if (conversationId) {
+      const { error } = await supabase
+        .from("conversations")
+        .update({ mode: selectedMode })
+        .eq("id", conversationId);
+      
+      if (error) {
+        console.error("Error updating conversation mode:", error);
+      }
+    }
+  };
+
   const handleSend = async () => {
     if ((!input.trim() && uploadedImages.length === 0) || isLoading) return;
 
@@ -160,6 +194,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
         .insert({
           title: "Nueva conversación",
           user_id: userId,
+          mode: mode || "formal",
         })
         .select()
         .single();
@@ -473,33 +508,6 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
                 </div>
               </div>
               <div className="flex items-center gap-2">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-2">
-                    {mode === "formal" ? "💼 Normal" : "⚙️ Developer"}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="bg-card">
-                  <DropdownMenuItem 
-                    onClick={() => {
-                      setMode("formal");
-                      localStorage.setItem("chatMode", "formal");
-                    }}
-                    className={mode === "formal" ? "bg-muted" : ""}
-                  >
-                    💼 Normal
-                  </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    onClick={() => {
-                      setMode("developer");
-                      localStorage.setItem("chatMode", "developer");
-                    }}
-                    className={mode === "developer" ? "bg-muted" : ""}
-                  >
-                    ⚙️ Developer
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
               <ExportButton conversationId={conversationId} />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -536,7 +544,9 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
       {/* Messages */}
       <div className="flex-1 overflow-y-auto">
         <div className="container max-w-4xl mx-auto px-4 py-8">
-          {messages.length === 0 ? (
+          {!mode && !isLoadingMode ? (
+            <ModeSelector onModeSelect={handleModeSelect} />
+          ) : messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center space-y-6">
               <Logo className="w-32 h-32 opacity-70" />
               <div className="space-y-2">
@@ -546,6 +556,14 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
                     ? "Pregunta lo que quieras. Puedo ayudarte con información, análisis y mucho más." 
                     : "Ask me anything. I can help you with information, analysis, and much more."}
                 </p>
+                {mode && (
+                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-full text-sm font-medium">
+                    {mode === "formal" ? "💼" : "⚙️"} 
+                    {mode === "formal" 
+                      ? (language === "es" ? "Modo Normal" : "Normal Mode")
+                      : (language === "es" ? "Modo Developer" : "Developer Mode")}
+                  </div>
+                )}
               </div>
               <div className="flex flex-wrap gap-2 justify-center max-w-2xl">
                 <div className="px-3 py-2 bg-muted/50 rounded-lg text-sm text-muted-foreground">
@@ -660,7 +678,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
             />
             <Button
               onClick={handleSend}
-              disabled={isLoading || (!input.trim() && uploadedImages.length === 0 && uploadedFiles.length === 0)}
+              disabled={isLoading || !mode || (!input.trim() && uploadedImages.length === 0 && uploadedFiles.length === 0)}
               className="bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90"
             >
               <Send className="w-5 h-5" />

@@ -33,6 +33,7 @@ interface Conversation {
   created_at: string;
   updated_at: string;
   folder_id: string | null;
+  mode: string;
 }
 
 interface FolderType {
@@ -277,9 +278,13 @@ export function ConversationSidebar({
                           <span className="text-sm truncate w-full">
                             {conversation.title}
                           </span>
-                          <span className="text-xs text-muted-foreground">
-                            {formatDate(conversation.updated_at)}
-                          </span>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span>
+                              {conversation.mode === "developer" ? "⚙️ Developer" : "💼 Normal"}
+                            </span>
+                            <span>•</span>
+                            <span>{formatDate(conversation.updated_at)}</span>
+                          </div>
                         </div>
                         <Button
                           size="icon"
