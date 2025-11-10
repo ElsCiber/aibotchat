@@ -9,12 +9,12 @@ import { Send, Globe, Image as ImageIcon, X, Menu, LogOut, Paperclip } from "luc
 import { Logo } from "@/components/Logo";
 import deepViewLogo from "@/assets/deepview-logo.png";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { ThemeSelector } from "@/components/ThemeSelector";
-import { ModeToggle } from "@/components/ModeToggle";
+import { SettingsDialog } from "@/components/SettingsDialog";
 import { ExportButton } from "@/components/ExportButton";
 import { PdfPreview } from "@/components/PdfPreview";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
 import { TagManager } from "@/components/TagManager";
+import { FolderManager } from "@/components/FolderManager";
 import { supabase } from "@/integrations/supabase/client";
 import { useSidebar } from "@/components/ui/sidebar";
 import { useNavigate } from "react-router-dom";
@@ -478,8 +478,6 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <ModeToggle />
-              <ThemeSelector />
               <ExportButton conversationId={conversationId} />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -496,13 +494,15 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+              <SettingsDialog />
               <Button variant="ghost" size="icon" onClick={handleLogout}>
                 <LogOut className="h-5 w-5" />
               </Button>
             </div>
             </div>
             {conversationId && (
-              <div className="mt-2">
+              <div className="mt-2 flex gap-2 flex-wrap">
+                <FolderManager conversationId={conversationId} />
                 <TagManager conversationId={conversationId} />
               </div>
             )}

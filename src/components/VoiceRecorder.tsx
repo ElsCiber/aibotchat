@@ -74,21 +74,33 @@ export function VoiceRecorder({ onTranscript }: VoiceRecorderProps) {
           body: { audio: base64Audio },
         });
 
-        if (error) throw error;
+        if (error) {
+          console.error("Speech-to-text error:", error);
+          throw new Error(error.message || "Failed to transcribe audio");
+        }
+
+        if (data?.error) {
+          console.error("Speech-to-text API error:", data.error);
+          throw new Error(data.error);
+        }
 
         if (data?.text) {
           onTranscript(data.text);
           toast({
             title: language === "es" ? "Transcripción completada" : "Transcription completed",
           });
+        } else {
+          throw new Error("No text returned from transcription");
         }
       };
     } catch (error) {
+      console.error("Voice recording error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
       toast({
         title: "Error",
         description: language === "es" 
-          ? "Error al procesar el audio" 
-          : "Error processing audio",
+          ? `Error al procesar el audio: ${errorMessage.includes("quota") || errorMessage.includes("429") ? "API sin créditos. Verifica tu cuenta de OpenAI." : errorMessage}` 
+          : `Error processing audio: ${errorMessage.includes("quota") || errorMessage.includes("429") ? "API quota exceeded. Check your OpenAI account." : errorMessage}`,
         variant: "destructive",
       });
     } finally {

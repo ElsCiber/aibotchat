@@ -53,6 +53,7 @@ export type Database = {
       conversations: {
         Row: {
           created_at: string
+          folder_id: string | null
           id: string
           title: string
           updated_at: string
@@ -60,6 +61,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          folder_id?: string | null
           id?: string
           title?: string
           updated_at?: string
@@ -67,9 +69,42 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          folder_id?: string | null
           id?: string
           title?: string
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversations_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "folders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      folders: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          name: string
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          name: string
+          user_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          name?: string
           user_id?: string
         }
         Relationships: []

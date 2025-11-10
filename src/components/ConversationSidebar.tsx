@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { MessageSquare, Plus, Trash2, Search } from "lucide-react";
+import { MessageSquare, Plus, Trash2, Search, Folder } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   Sidebar,
@@ -14,6 +14,13 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -24,6 +31,13 @@ interface Conversation {
   title: string;
   created_at: string;
   updated_at: string;
+  folder_id: string | null;
+}
+
+interface FolderType {
+  id: string;
+  name: string;
+  color: string;
 }
 
 interface ConversationSidebarProps {
@@ -38,18 +52,23 @@ export function ConversationSidebar({
   onNewConversation,
 }: ConversationSidebarProps) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [folders, setFolders] = useState<FolderType[]>([]);
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const { state } = useSidebar();
   const { language } = useLanguage();
   const { toast } = useToast();
   const isCollapsed = state === "collapsed";
 
-  const filteredConversations = conversations.filter((conv) =>
-    conv.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredConversations = conversations.filter((conv) => {
+    const matchesSearch = conv.title.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesFolder = selectedFolder === null || selectedFolder === "all" || conv.folder_id === selectedFolder;
+    return matchesSearch && matchesFolder;
+  });
 
   useEffect(() => {
     loadConversations();
+    loadFolders();
 
     // Subscribe to realtime changes
     const channel = supabase
@@ -63,6 +82,17 @@ export function ConversationSidebar({
         },
         () => {
           loadConversations();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "folders",
+        },
+        () => {
+          loadFolders();
         }
       )
       .subscribe();
@@ -84,6 +114,20 @@ export function ConversationSidebar({
     }
 
     setConversations(data || []);
+  };
+
+  const loadFolders = async () => {
+    const { data, error } = await supabase
+      .from("folders")
+      .select("*")
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      console.error("Error loading folders:", error);
+      return;
+    }
+
+    setFolders(data || []);
   };
 
   const deleteConversation = async (id: string, e: React.MouseEvent) => {
@@ -140,6 +184,35 @@ export function ConversationSidebar({
           )}
           <SidebarTrigger />
         </div>
+        {!isCollapsed && folders.length > 0 && (
+          <div className="mt-3">
+            <Select value={selectedFolder || "all"} onValueChange={(value) => setSelectedFolder(value === "all" ? null : value)}>
+              <SelectTrigger className="bg-background">
+                <SelectValue>
+                  <div className="flex items-center gap-2">
+                    <Folder className="h-4 w-4" />
+                    {selectedFolder 
+                      ? folders.find(f => f.id === selectedFolder)?.name 
+                      : (language === "es" ? "Todas" : "All")}
+                  </div>
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent className="bg-card">
+                <SelectItem value="all">
+                  {language === "es" ? "Todas las carpetas" : "All folders"}
+                </SelectItem>
+                {folders.map((folder) => (
+                  <SelectItem key={folder.id} value={folder.id}>
+                    <div className="flex items-center gap-2">
+                      <Folder className="h-4 w-4" style={{ color: folder.color }} />
+                      {folder.name}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </SidebarHeader>
 
       <SidebarContent>

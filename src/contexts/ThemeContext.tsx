@@ -371,6 +371,16 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const root = document.documentElement;
     const selectedTheme = themes[theme][mode];
     
+    // Remove all theme classes
+    root.classList.remove('theme-purple', 'theme-blue', 'theme-green', 'theme-red', 'theme-orange');
+    // Remove mode classes
+    root.classList.remove('dark', 'light');
+    
+    // Add current theme and mode classes
+    root.classList.add(`theme-${theme}`);
+    root.classList.add(mode);
+    
+    // Apply CSS variables
     Object.entries(selectedTheme).forEach(([key, value]) => {
       root.style.setProperty(key, value);
     });
