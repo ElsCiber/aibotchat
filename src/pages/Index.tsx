@@ -62,7 +62,12 @@ const Index = () => {
   };
 
   const handleConversationCreated = (id: string) => {
-    setCurrentConversationId(id);
+    // If empty string, create new conversation
+    if (id === "") {
+      setCurrentConversationId(null);
+    } else {
+      setCurrentConversationId(id);
+    }
   };
 
   if (!user) {

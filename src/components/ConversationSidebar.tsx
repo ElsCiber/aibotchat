@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { MessageSquare, Plus, Trash2, Search, Folder } from "lucide-react";
+import { MessageSquare, Plus, Trash2, Search, Folder, MoreVertical, Settings2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import {
@@ -15,6 +15,13 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -172,6 +179,29 @@ export function ConversationSidebar({
     });
   };
 
+  const changeModeConversation = async (id: string, newMode: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    const { error } = await supabase
+      .from("conversations")
+      .update({ mode: newMode })
+      .eq("id", id);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: language === "es" ? "Error al cambiar el modo" : "Error changing mode",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({
+      title: language === "es" ? "Modo cambiado" : "Mode changed",
+      description: newMode === "developer" ? "Developer" : "Normal",
+    });
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -266,37 +296,65 @@ export function ConversationSidebar({
             <SidebarMenu>
               {filteredConversations.map((conversation) => (
                 <SidebarMenuItem key={conversation.id}>
-                  <SidebarMenuButton
-                    onClick={() => onConversationChange(conversation.id)}
-                    isActive={currentConversationId === conversation.id}
-                    className="group relative"
-                  >
-                    <MessageSquare className="h-4 w-4" />
-                    {!isCollapsed && (
-                      <>
-                        <div className="flex-1 flex flex-col items-start min-w-0">
-                          <span className="text-sm truncate w-full">
-                            {conversation.title}
-                          </span>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <span>
-                              {conversation.mode === "developer" ? "⚙️ Developer" : "💼 Normal"}
+                  <div className="relative group">
+                    <SidebarMenuButton
+                      onClick={() => onConversationChange(conversation.id)}
+                      isActive={currentConversationId === conversation.id}
+                    >
+                      <MessageSquare className="h-4 w-4" />
+                      {!isCollapsed && (
+                        <>
+                          <div className="flex-1 flex flex-col items-start min-w-0">
+                            <span className="text-sm truncate w-full">
+                              {conversation.title}
                             </span>
-                            <span>•</span>
-                            <span>{formatDate(conversation.updated_at)}</span>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <span>
+                                {conversation.mode === "developer" ? "⚙️ Developer" : "💼 Normal"}
+                              </span>
+                              <span>•</span>
+                              <span>{formatDate(conversation.updated_at)}</span>
+                            </div>
                           </div>
-                        </div>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={(e) => deleteConversation(conversation.id, e)}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </>
+                        </>
+                      )}
+                    </SidebarMenuButton>
+                    {!isCollapsed && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-6 w-6 absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <MoreVertical className="h-3 w-3" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuItem
+                            onClick={(e) => changeModeConversation(
+                              conversation.id,
+                              conversation.mode === "developer" ? "formal" : "developer",
+                              e
+                            )}
+                          >
+                            <Settings2 className="h-4 w-4 mr-2" />
+                            {language === "es" ? "Cambiar a " : "Change to "}
+                            {conversation.mode === "developer" ? "Normal" : "Developer"}
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={(e) => deleteConversation(conversation.id, e)}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            {language === "es" ? "Eliminar" : "Delete"}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     )}
-                  </SidebarMenuButton>
+                  </div>
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
