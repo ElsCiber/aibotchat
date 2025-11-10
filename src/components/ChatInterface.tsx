@@ -7,12 +7,10 @@ import ChatMessage from "./ChatMessage";
 import { messageSchema, conversationTitleSchema } from "@/utils/validation";
 import { Send, Globe, Image as ImageIcon, X, Menu, LogOut, Paperclip } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import deepViewLogo from "@/assets/deepview-logo.png";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { SettingsDialog } from "@/components/SettingsDialog";
 import { ExportButton } from "@/components/ExportButton";
 import { PdfPreview } from "@/components/PdfPreview";
-import { VoiceRecorder } from "@/components/VoiceRecorder";
 import { TagManager } from "@/components/TagManager";
 import { FolderManager } from "@/components/FolderManager";
 import { supabase } from "@/integrations/supabase/client";
@@ -515,7 +513,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
         <div className="container max-w-4xl mx-auto px-4 py-8">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center space-y-4">
-              <img src={deepViewLogo} alt="DeepView Logo" className="w-24 h-24 opacity-50 rounded-full" />
+              <Logo className="w-32 h-32 opacity-70" />
               <div>
                 <h2 className="text-2xl font-bold text-foreground mb-2">{t("welcome")}</h2>
               </div>
@@ -611,7 +609,6 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
             >
               <Paperclip className="h-5 w-5" />
             </Button>
-            <VoiceRecorder onTranscript={(text) => setInput(prev => prev + " " + text)} />
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
