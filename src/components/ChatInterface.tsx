@@ -41,10 +41,29 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
+  
   const { toast } = useToast();
   const { language, setLanguage, t } = useLanguage();
   const { toggleSidebar } = useSidebar();
   const navigate = useNavigate();
+  
+  // Refs for stable callbacks
+  const messagesRef = useRef<Message[]>([]);
+  const toastRef = useRef(toast);
+  const onConversationCreatedRef = useRef(onConversationCreated);
+  
+  // Keep refs in sync
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+  
+  useEffect(() => {
+    toastRef.current = toast;
+  }, [toast]);
+  
+  useEffect(() => {
+    onConversationCreatedRef.current = onConversationCreated;
+  }, [onConversationCreated]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -198,7 +217,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
         .single();
 
       if (error) {
-        toast({
+        toastRef.current({
           title: "Error",
           description: language === "es" ? "Error al crear la conversación" : "Error creating conversation",
           variant: "destructive",
@@ -207,7 +226,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
       }
 
       activeConversationId = data.id;
-      onConversationCreated(data.id);
+      onConversationCreatedRef.current(data.id);
     }
 
     let messageContent = input.trim();
@@ -238,7 +257,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
         images: userMessage.images,
       });
     } catch (error) {
-      toast({
+      toastRef.current({
         title: "Validation Error",
         description: error instanceof Error ? error.message : "Invalid message format",
         variant: "destructive",
@@ -258,7 +277,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
     });
 
     if (saveError) {
-      toast({
+      toastRef.current({
         title: "Error",
         description: "Unable to save message. Please try again.",
         variant: "destructive",
@@ -268,7 +287,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
     }
     
     // Update conversation title with first message
-    if (messages.length === 0) {
+    if (messagesRef.current.length === 0) {
       let title = userMessage.content.slice(0, 50) + (userMessage.content.length > 50 ? "..." : "");
       
       // Validate title length
@@ -284,7 +303,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
         .eq("id", activeConversationId);
 
       if (titleError) {
-        toast({
+        toastRef.current({
           title: "Error",
           description: "Unable to update conversation title.",
           variant: "destructive",
@@ -326,7 +345,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
     };
 
     await streamChat({
-      messages: [...messages, userMessage],
+      messages: [...messagesRef.current, userMessage],
       mode,
       onDelta: (chunk) => upsertAssistant(chunk),
       onDone: async () => {
@@ -371,14 +390,14 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
       },
       onError: (error) => {
         setIsLoading(false);
-        toast({
+        toastRef.current({
           title: "Error",
           description: error,
           variant: "destructive",
         });
       },
     });
-  }, [input, uploadedImages, uploadedFiles, isLoading, conversationId, userId, mode, messages, language, toast, onConversationCreated]);
+  }, [input, uploadedImages, uploadedFiles, isLoading, conversationId, userId, mode, language]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
