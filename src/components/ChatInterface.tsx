@@ -11,7 +11,6 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { SettingsDialog } from "@/components/SettingsDialog";
 import { ExportButton } from "@/components/ExportButton";
 import { PdfPreview } from "@/components/PdfPreview";
-import { FolderManager } from "@/components/FolderManager";
 
 import { ModeSelector } from "@/components/ModeSelector";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
@@ -537,11 +536,6 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
               </Button>
             </div>
             </div>
-            {conversationId && (
-              <div className="mt-2">
-                <FolderManager conversationId={conversationId} />
-              </div>
-            )}
           </div>
         </div>
       </header>
