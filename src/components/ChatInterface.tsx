@@ -32,7 +32,6 @@ interface ChatInterfaceProps {
 
 const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatInterfaceProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [uploadedFiles, setUploadedFiles] = useState<Array<{name: string, content: string, type: string}>>([]);
@@ -41,6 +40,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   
   const { toast } = useToast();
   const { language, setLanguage, t } = useLanguage();
@@ -203,7 +203,8 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
   };
 
   const handleSend = useCallback(async () => {
-    if ((!input.trim() && uploadedImages.length === 0) || isLoading) return;
+    const inputText = inputRef.current?.value.trim() ?? "";
+    if ((!inputText && uploadedImages.length === 0 && uploadedFiles.length === 0) || isLoading) return;
 
     // Create conversation if none exists
     let activeConversationId = conversationId;
@@ -231,7 +232,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
       onConversationCreatedRef.current(data.id);
     }
 
-    let messageContent = input.trim();
+    let messageContent = inputText;
     
     // Add file contents to message if any
     if (uploadedFiles.length > 0) {
@@ -313,7 +314,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
       }
     }
     
-    setInput("");
+    if (inputRef.current) inputRef.current.value = "";
     setUploadedImages([]);
     setUploadedFiles([]);
     setIsLoading(true);
@@ -326,11 +327,13 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
         setMessages((prev) => {
           const last = prev[prev.length - 1];
           if (last?.role === "assistant") {
-            return prev.map((m, i) =>
-              i === prev.length - 1 
-                ? { ...m, content: assistantContent, images: assistantImages.length > 0 ? assistantImages : undefined } 
-                : m
-            );
+            const next = prev.slice();
+            next[next.length - 1] = { 
+              ...last, 
+              content: assistantContent, 
+              images: assistantImages.length > 0 ? assistantImages : undefined 
+            };
+            return next;
           }
           return [...prev, { role: "assistant", content: assistantContent, images: assistantImages.length > 0 ? assistantImages : undefined }];
         });
@@ -408,7 +411,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
         });
       },
     });
-  }, [input, uploadedImages, uploadedFiles, isLoading, conversationId, userId, mode, language]);
+  }, [uploadedImages, uploadedFiles, isLoading, conversationId, userId, mode, language]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -506,10 +509,6 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
       description: language === "es" ? "La imagen se ha añadido a tu mensaje" : "The image has been added to your message",
     });
   };
-
-  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setInput(e.target.value);
-  }, []);
 
   const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -698,16 +697,15 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
               <Paperclip className="h-5 w-5" />
             </Button>
             <Input
-              value={input}
-              onChange={handleInputChange}
+              ref={inputRef}
+              defaultValue=""
               onKeyDown={handleKeyPress}
               placeholder={t("placeholder")}
-              disabled={isLoading}
               className="flex-1 bg-background border-border focus-visible:ring-primary"
             />
             <Button
               onClick={handleSend}
-              disabled={isLoading || !mode || (!input.trim() && uploadedImages.length === 0 && uploadedFiles.length === 0)}
+              disabled={isLoading || !mode}
               className="bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90"
             >
               <Send className="w-5 h-5" />
