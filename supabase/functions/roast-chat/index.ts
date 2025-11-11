@@ -302,6 +302,25 @@ Remember: Your purpose is to assist and provide value to the user in a professio
 
         const cleanPrompt = textContent.replace(/\[ratio:[^\]]+\]/, '').trim();
 
+        // Multiple model fallback options
+        const videoModels = [
+          {
+            name: "minimax/video-01 (latest)",
+            version: "608bbe118537f175d1078bbe8cb0b4f656992c14fc80b6a07f53c9a8ad304159",
+            input: { prompt: cleanPrompt, aspect_ratio }
+          },
+          {
+            name: "minimax/video-01 (alt)",
+            version: "6be8dfbbf29ba949b6bce8ca1b93fd8cf24f84f0b246852e98e0a5c7a4c02091",
+            input: { prompt: cleanPrompt, aspect_ratio }
+          },
+          {
+            name: "lucataco/animate-diff",
+            version: "1531004ee4c98894ab11f8a4ce6206099e53d0e1e3ce1d6ea3f32d6a9d8c762f",
+            input: { prompt: cleanPrompt, width: aspect_ratio === "16:9" ? 512 : 320, height: aspect_ratio === "16:9" ? 320 : 512 }
+          }
+        ];
+
         const encoder = new TextEncoder();
         const stream = new ReadableStream({
           async start(controller) {
@@ -316,43 +335,67 @@ Remember: Your purpose is to assist and provide value to the user in a professio
             };
 
             // Initial message
-            sendText("Iniciando generación de vídeo con Replicate (minimax/video-01)...");
+            sendText("Iniciando generación de vídeo con Replicate...");
 
-            try {
-              // Create prediction
-              const createResp = await fetch("https://api.replicate.com/v1/predictions", {
-                method: "POST",
-                headers: {
-                  "Authorization": `Bearer ${REPLICATE_API_KEY}`,
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  version: "9c56306e5c6b64c6c5ac3ece47c455d0b85d6a3f25a4ba30cf4061c55f64b71c",
-                  input: {
-                    prompt: cleanPrompt,
-                    aspect_ratio: aspect_ratio,
+            let predictionId: string | null = null;
+            let usedModel: string | null = null;
+
+            // Try each model until one works
+            for (const model of videoModels) {
+              try {
+                sendText(`\n\nProbando modelo: ${model.name}...`);
+                
+                const createResp = await fetch("https://api.replicate.com/v1/predictions", {
+                  method: "POST",
+                  headers: {
+                    "Authorization": `Bearer ${REPLICATE_API_KEY}`,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({
+                    version: model.version,
+                    input: model.input
+                  }),
+                });
+
+                if (!createResp.ok) {
+                  const errorText = await createResp.text();
+                  console.error(`Model ${model.name} failed:`, createResp.status, errorText);
+                  
+                  if (createResp.status === 401) {
+                    sendText("\n\n❌ Error de autenticación. Verifica tu REPLICATE_API_KEY.");
+                    controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+                    return;
                   }
-                }),
-              });
-
-              if (!createResp.ok) {
-                const errorText = await createResp.text();
-                if (createResp.status === 401) {
-                  sendText("\n\nError de autenticación. Verifica tu REPLICATE_API_KEY.");
-                  controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-                  return;
+                  
+                  // Try next model
+                  sendText(`\n\n⚠️ Modelo no disponible, probando alternativa...`);
+                  continue;
                 }
-                throw new Error(`Replicate API error: ${createResp.status} - ${errorText}`);
+
+                const prediction = await createResp.json();
+                predictionId = prediction.id;
+                usedModel = model.name;
+                if (predictionId) {
+                  sendText(`\n\n✅ Modelo ${model.name} iniciado correctamente (ID: ${predictionId.slice(0, 8)}...)`);
+                }
+                break;
+              } catch (err) {
+                console.error(`Error with model ${model.name}:`, err);
+                continue;
               }
+            }
 
-              const prediction = await createResp.json();
-              const predictionId = prediction.id;
-              
-              sendText(`\n\nGenerando vídeo (ID: ${predictionId.slice(0, 8)}...)...`);
+            if (!predictionId || !usedModel) {
+              sendText("\n\n❌ No hay modelos disponibles. Verifica tu suscripción de Replicate o intenta más tarde.");
+              controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+              return;
+            }
 
-              // Poll for completion
-              let attempts = 0;
-              const maxAttempts = 120; // 6 minutes max
+            // Poll for completion
+            let attempts = 0;
+            const maxAttempts = 120; // 6 minutes max
+            
+            try {
               while (attempts < maxAttempts) {
                 await new Promise(r => setTimeout(r, 3000));
                 attempts++;
@@ -369,7 +412,7 @@ Remember: Your purpose is to assist and provide value to the user in a professio
                 }
 
                 const status = await statusResp.json();
-                console.log("Status:", status.status, "Logs:", status.logs);
+                console.log("Status:", status.status);
 
                 // Send progress
                 if (status.status === "processing" || status.status === "starting") {
@@ -382,7 +425,7 @@ Remember: Your purpose is to assist and provide value to the user in a professio
                   const videoUrl = status.output;
                   if (videoUrl) {
                     sendVideo(videoUrl);
-                    sendText(`\n\n✅ Vídeo generado exitosamente.`);
+                    sendText(`\n\n✅ Vídeo generado exitosamente con ${usedModel}.`);
                   } else {
                     sendText("\n\n⚠️ Generación completada pero no se recibió URL del vídeo.");
                   }
@@ -400,7 +443,7 @@ Remember: Your purpose is to assist and provide value to the user in a professio
               sendText("\n\n⏱️ Tiempo de espera agotado. La generación puede continuar en segundo plano.");
               controller.enqueue(encoder.encode("data: [DONE]\n\n"));
             } catch (err) {
-              console.error("Replicate error:", err);
+              console.error("Replicate polling error:", err);
               sendText(`\n\nError al generar vídeo: ${err instanceof Error ? err.message : String(err)}`);
               controller.enqueue(encoder.encode("data: [DONE]\n\n"));
             }
