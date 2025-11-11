@@ -141,6 +141,13 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
   }, [messages, debouncedScrollToBottom]);
 
   useEffect(() => {
+    // Cancel any ongoing streaming when conversation changes
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setIsLoading(false);
+    }
+
     if (conversationId) {
       loadMessages();
       loadConversationMode();
@@ -245,6 +252,9 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
   const handleSend = useCallback(async () => {
     const inputText = inputRef.current?.value.trim() ?? "";
     if ((!inputText && uploadedImages.length === 0 && uploadedFiles.length === 0) || isLoading) return;
+
+    // Store the active conversation ID for this request
+    const requestConversationId = conversationId;
 
     // Create conversation if none exists
     let activeConversationId = conversationId;
@@ -404,6 +414,11 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
       scheduled = false;
     };
     const upsertAssistant = (chunk: string) => {
+      // Ignore updates if conversation has changed
+      if (conversationId !== requestConversationId) {
+        return;
+      }
+
       // Check if chunk contains media data
       try {
         const parsed = JSON.parse(chunk);
@@ -430,6 +445,13 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
       mode,
       onDelta: (chunk) => upsertAssistant(chunk),
       onDone: async () => {
+        // Only save if we're still on the same conversation
+        if (conversationId !== requestConversationId) {
+          setIsLoading(false);
+          abortControllerRef.current = null;
+          return;
+        }
+
         setIsLoading(false);
         abortControllerRef.current = null;
         // Save assistant message
@@ -628,12 +650,12 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
                     <Globe className="h-5 w-5" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="bg-card">
+                <DropdownMenuContent align="end" className="bg-background border-border z-50">
                   <DropdownMenuItem onClick={() => setLanguage("en")}>
-                    🇬🇧 English
+                    English
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setLanguage("es")}>
-                    🇪🇸 Español
+                    Español
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
