@@ -5,6 +5,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Replicate circuit-breaker to avoid repeating known errors
+const REPLICATE_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes
+let replicateCooldownUntil: number | null = null;
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -275,9 +279,8 @@ Remember: Your purpose is to assist and provide value to the user in a professio
     if (isVideoGenerationRequest) {
       try {
         const REPLICATE_API_KEY = Deno.env.get("REPLICATE_API_KEY");
-        if (!REPLICATE_API_KEY) throw new Error("REPLICATE_API_KEY is not configured");
-
-        console.log("Video generation requested, calling Replicate API with streaming...");
+        
+        console.log("Video generation requested");
         
         // Extract keyframe image and ratio if present in message
         let keyframe_image: string | null = null;
@@ -292,7 +295,6 @@ Remember: Your purpose is to assist and provide value to the user in a professio
         const ratioMatch = (textContent || "").match(/\[ratio:(1280:720|720:1280|1920:1080|1080:1920|16:9|9:16)\]/);
         if (ratioMatch) {
           const ratio = ratioMatch[1];
-          // Normalize to aspect ratio format
           if (ratio.includes("1280:720") || ratio === "16:9" || ratio === "1920:1080") {
             aspect_ratio = "16:9";
           } else if (ratio.includes("720:1280") || ratio === "9:16" || ratio === "1080:1920") {
@@ -300,25 +302,75 @@ Remember: Your purpose is to assist and provide value to the user in a professio
           }
         }
 
-        const cleanPrompt = textContent.replace(/\[ratio:[^\]]+\]/, '').trim();
+        const cleanPrompt = (textContent || "").replace(/\[ratio:[^\]]+\]/, '').trim();
 
-        // Multiple model fallback options
-        const videoModels = [
-          {
-            name: "minimax/video-01 (latest)",
-            version: "608bbe118537f175d1078bbe8cb0b4f656992c14fc80b6a07f53c9a8ad304159",
-            input: { prompt: cleanPrompt, aspect_ratio }
-          },
-          {
-            name: "minimax/video-01 (alt)",
-            version: "6be8dfbbf29ba949b6bce8ca1b93fd8cf24f84f0b246852e98e0a5c7a4c02091",
-            input: { prompt: cleanPrompt, aspect_ratio }
-          },
-          {
-            name: "lucataco/animate-diff",
-            version: "1531004ee4c98894ab11f8a4ce6206099e53d0e1e3ce1d6ea3f32d6a9d8c762f",
-            input: { prompt: cleanPrompt, width: aspect_ratio === "16:9" ? 512 : 320, height: aspect_ratio === "16:9" ? 320 : 512 }
+        // Fallback: generate storyboard images via Lovable AI (Gemini image model)
+        const generateStoryboard = async (controller: ReadableStreamDefaultController, encoder: TextEncoder) => {
+          const sendText = (content: string) => {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`));
+          };
+          const sendImages = (urls: string[]) => {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { images: urls } }] })}\n\n`));
+          };
+
+          try {
+            sendText("\n\nNo hay modelos de vídeo disponibles ahora mismo. Generaré un storyboard de 6 viñetas como alternativa...");
+            const storyboardPrompt = `Crea un storyboard cinematográfico de 6 viñetas en una cuadrícula 3x2 (mismo estilo en todas), con encuadres variados y transición lógica entre escenas. Mantén la composición ${aspect_ratio === '9:16' ? 'vertical 9:16' : 'horizontal 16:9'}. Tema: ${cleanPrompt || 'video solicitado por el usuario'}. Evita texto dentro de la imagen.`;
+
+            const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${LOVABLE_API_KEY}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                model: "google/gemini-2.5-flash-image-preview",
+                messages: [
+                  { role: "user", content: storyboardPrompt }
+                ],
+                modalities: ["image", "text"]
+              })
+            });
+
+            if (!aiResp.ok) {
+              const t = await aiResp.text();
+              console.error("AI gateway image error:", aiResp.status, t);
+              sendText("\n\n❌ No fue posible generar el storyboard. Intenta más tarde.");
+              return;
+            }
+
+            const data = await aiResp.json();
+            const images = data?.choices?.[0]?.message?.images?.map((i: any) => i?.image_url?.url).filter(Boolean) || [];
+            if (images.length > 0) {
+              sendImages(images);
+              sendText("\n\n✅ Storyboard generado como alternativa.");
+            } else {
+              sendText("\n\n⚠️ La respuesta no incluyó imágenes. Intenta más tarde.");
+            }
+          } catch (err) {
+            console.error("Storyboard fallback error:", err);
+            sendText(`\n\nError al generar storyboard: ${err instanceof Error ? err.message : String(err)}`);
           }
+        };
+
+        // If no API key or we are in cooldown, go straight to storyboard
+        if (!REPLICATE_API_KEY || (replicateCooldownUntil && Date.now() < replicateCooldownUntil)) {
+          const encoder = new TextEncoder();
+          const stream = new ReadableStream({
+            async start(controller) {
+              await generateStoryboard(controller, encoder);
+              controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+            }
+          });
+          return new Response(stream, { headers: { ...corsHeaders, "Content-Type": "text/event-stream" } });
+        }
+
+        console.log("Iniciando generación de vídeo con Replicate...");
+        
+        // Multiple model fallback options (use model endpoints without pinned versions to avoid 422s)
+        const videoModels = [
+          { name: "minimax/video-01", path: "minimax/video-01", input: { prompt: cleanPrompt, aspect_ratio } },
+          { name: "lucataco/animate-diff", path: "lucataco/animate-diff", input: { prompt: cleanPrompt, width: aspect_ratio === "16:9" ? 512 : 320, height: aspect_ratio === "16:9" ? 320 : 512 } }
         ];
 
         const encoder = new TextEncoder();
@@ -333,41 +385,42 @@ Remember: Your purpose is to assist and provide value to the user in a professio
             const sendVideo = (url: string) => {
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { videos: [url] } }] })}\n\n`));
             };
+            const sendImages = (urls: string[]) => {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { images: urls } }] })}\n\n`));
+            };
 
-            // Initial message
             sendText("Iniciando generación de vídeo con Replicate...");
 
             let predictionId: string | null = null;
             let usedModel: string | null = null;
 
-            // Try each model until one works
             for (const model of videoModels) {
               try {
                 sendText(`\n\nProbando modelo: ${model.name}...`);
-                
-                const createResp = await fetch("https://api.replicate.com/v1/predictions", {
+
+                const createResp = await fetch(`https://api.replicate.com/v1/models/${model.path}/predictions`, {
                   method: "POST",
                   headers: {
                     "Authorization": `Bearer ${REPLICATE_API_KEY}`,
                     "Content-Type": "application/json",
                   },
-                  body: JSON.stringify({
-                    version: model.version,
-                    input: model.input
-                  }),
+                  body: JSON.stringify({ input: { ...model.input, image: keyframe_image || undefined } }),
                 });
 
                 if (!createResp.ok) {
                   const errorText = await createResp.text();
                   console.error(`Model ${model.name} failed:`, createResp.status, errorText);
-                  
-                  if (createResp.status === 401) {
-                    sendText("\n\n❌ Error de autenticación. Verifica tu REPLICATE_API_KEY.");
+
+                  // On credit, permission or rate limit issues, trigger cooldown and fallback to storyboard
+                  if ([402, 401, 403, 422, 429].includes(createResp.status)) {
+                    replicateCooldownUntil = Date.now() + REPLICATE_COOLDOWN_MS;
+                    sendText("\n\n⚠️ Modelo no disponible o sin crédito. Activando modo alternativo (storyboard) por 10 minutos.");
+                    await generateStoryboard(controller, encoder);
                     controller.enqueue(encoder.encode("data: [DONE]\n\n"));
                     return;
                   }
-                  
-                  // Try next model
+
+                  // Try next model for other errors
                   sendText(`\n\n⚠️ Modelo no disponible, probando alternativa...`);
                   continue;
                 }
@@ -381,12 +434,15 @@ Remember: Your purpose is to assist and provide value to the user in a professio
                 break;
               } catch (err) {
                 console.error(`Error with model ${model.name}:`, err);
+                // Network or unknown error: try the next model
                 continue;
               }
             }
 
             if (!predictionId || !usedModel) {
-              sendText("\n\n❌ No hay modelos disponibles. Verifica tu suscripción de Replicate o intenta más tarde.");
+              replicateCooldownUntil = Date.now() + REPLICATE_COOLDOWN_MS;
+              sendText("\n\n❌ No hay modelos disponibles. Generaré un storyboard alternativo y evitaré nuevos intentos durante 10 minutos.");
+              await generateStoryboard(controller, encoder);
               controller.enqueue(encoder.encode("data: [DONE]\n\n"));
               return;
             }
@@ -401,9 +457,7 @@ Remember: Your purpose is to assist and provide value to the user in a professio
                 attempts++;
 
                 const statusResp = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
-                  headers: {
-                    "Authorization": `Bearer ${REPLICATE_API_KEY}`,
-                  },
+                  headers: { "Authorization": `Bearer ${REPLICATE_API_KEY}` },
                 });
 
                 if (!statusResp.ok) {
@@ -414,7 +468,6 @@ Remember: Your purpose is to assist and provide value to the user in a professio
                 const status = await statusResp.json();
                 console.log("Status:", status.status);
 
-                // Send progress
                 if (status.status === "processing" || status.status === "starting") {
                   const progress = Math.min(95, 10 + (attempts * 2));
                   sendProgress(progress);
@@ -435,16 +488,20 @@ Remember: Your purpose is to assist and provide value to the user in a professio
 
                 if (status.status === "failed" || status.status === "canceled") {
                   sendText(`\n\n❌ Error: ${status.error || "Generación fallida"}`);
+                  // Fallback to storyboard on failure
+                  await generateStoryboard(controller, encoder);
                   controller.enqueue(encoder.encode("data: [DONE]\n\n"));
                   return;
                 }
               }
 
-              sendText("\n\n⏱️ Tiempo de espera agotado. La generación puede continuar en segundo plano.");
+              sendText("\n\n⏱️ Tiempo de espera agotado. Generando storyboard como alternativa...");
+              await generateStoryboard(controller, encoder);
               controller.enqueue(encoder.encode("data: [DONE]\n\n"));
             } catch (err) {
               console.error("Replicate polling error:", err);
               sendText(`\n\nError al generar vídeo: ${err instanceof Error ? err.message : String(err)}`);
+              await generateStoryboard(controller, encoder);
               controller.enqueue(encoder.encode("data: [DONE]\n\n"));
             }
           }
