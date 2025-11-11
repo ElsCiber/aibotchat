@@ -40,19 +40,31 @@ const ChatMessage = ({ message, language = "en", onAttachImage, isStreaming = fa
     }
   };
 
-  const handleDownloadImage = async (imageUrl: string, index: number) => {
-    try {
-      const response = await fetch(imageUrl);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
+  const downloadFile = async (mediaUrl: string, filename: string) => {
+    if (mediaUrl.startsWith('data:')) {
       const link = document.createElement('a');
-      link.href = url;
-      link.download = `deepview-image-${Date.now()}-${index}.png`;
+      link.href = mediaUrl;
+      link.download = filename;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-      
+      return;
+    }
+    const response = await fetch(mediaUrl);
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadImage = async (imageUrl: string, index: number) => {
+    try {
+      await downloadFile(imageUrl, `deepview-image-${Date.now()}-${index}.png`);
       toast({
         title: language === "es" ? "Descargado" : "Downloaded",
         description: language === "es" ? "Imagen descargada correctamente" : "Image downloaded successfully",
@@ -61,6 +73,22 @@ const ChatMessage = ({ message, language = "en", onAttachImage, isStreaming = fa
       toast({
         title: "Error",
         description: language === "es" ? "No se pudo descargar la imagen" : "Failed to download image",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDownloadVideo = async (videoUrl: string, index: number) => {
+    try {
+      await downloadFile(videoUrl, `deepview-video-${Date.now()}-${index}.mp4`);
+      toast({
+        title: language === "es" ? "Descargado" : "Downloaded",
+        description: language === "es" ? "Vídeo descargado correctamente" : "Video downloaded successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: language === "es" ? "No se pudo descargar el vídeo" : "Failed to download video",
         variant: "destructive",
       });
     }
@@ -183,6 +211,49 @@ const ChatMessage = ({ message, language = "en", onAttachImage, isStreaming = fa
             ))}
           </div>
         )}
+
+        {/* Videos - user uploaded */}
+        {isUser && message.videos && message.videos.length > 0 && (
+          <div className="mt-4 flex flex-col gap-3">
+            {message.videos.map((vid, idx) => (
+              <video
+                key={idx}
+                src={vid}
+                controls
+                className="max-w-full rounded-lg border border-border"
+                style={{ maxHeight: "400px" }}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* AI generated videos - with download button */}
+        {!isUser && message.videos && message.videos.length > 0 && (
+          <div className="mt-4 flex flex-col gap-3">
+            {message.videos.map((vid, idx) => (
+              <div key={idx} className="relative inline-block group">
+                <video
+                  src={vid}
+                  controls
+                  className="max-w-full rounded-lg border border-border"
+                  style={{ maxHeight: "400px" }}
+                />
+                <div className="absolute bottom-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => handleDownloadVideo(vid, idx)}
+                    className="shadow-lg"
+                  >
+                    <Download className="h-4 w-4 mr-1" />
+                    {language === "es" ? "Descargar" : "Download"}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {!isUser && (
           <div className="flex gap-1 mt-2">
             <Button

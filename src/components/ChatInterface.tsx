@@ -43,6 +43,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [uploadedVideos, setUploadedVideos] = useState<string[]>([]);
   const [uploadedFiles, setUploadedFiles] = useState<Array<{name: string, content: string, type: string}>>([]);
   const [mode, setMode] = useState<"formal" | "developer" | null>(null);
   const [isLoadingMode, setIsLoadingMode] = useState(true);
@@ -286,7 +287,8 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
     const userMessage: Message = { 
       role: "user", 
       content: messageContent,
-      images: uploadedImages.length > 0 ? [...uploadedImages] : undefined
+      images: uploadedImages.length > 0 ? [...uploadedImages] : undefined,
+      videos: uploadedVideos.length > 0 ? [...uploadedVideos] : undefined,
     };
     
     // Validate user message before saving
@@ -354,12 +356,14 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
     if (inputRef.current) inputRef.current.value = "";
     localStorage.removeItem(DRAFT_KEY); // Clear draft after sending
     setUploadedImages([]);
+    setUploadedVideos([]);
     setUploadedFiles([]);
     setIsLoading(true);
     abortControllerRef.current = new AbortController();
 
     let assistantContent = "";
     let assistantImages: string[] = [];
+    let assistantVideos: string[] = [];
     let scheduled = false;
     const flushAssistant = () => {
       startTransition(() => {
@@ -370,17 +374,21 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
             next[next.length - 1] = { 
               ...last, 
               content: assistantContent, 
-              images: assistantImages.length > 0 ? assistantImages : undefined 
+              images: assistantImages.length > 0 ? assistantImages : undefined,
+              videos: assistantVideos.length > 0 ? assistantVideos : undefined,
             };
             return next;
           }
-          return [...prev, { role: "assistant", content: assistantContent, images: assistantImages.length > 0 ? assistantImages : undefined }];
+          return [
+            ...prev,
+            { role: "assistant", content: assistantContent, images: assistantImages.length > 0 ? assistantImages : undefined, videos: assistantVideos.length > 0 ? assistantVideos : undefined }
+          ];
         });
       });
       scheduled = false;
     };
     const upsertAssistant = (chunk: string) => {
-      // Check if chunk contains image data
+      // Check if chunk contains media data
       try {
         const parsed = JSON.parse(chunk);
         if (parsed.images) {
@@ -389,9 +397,16 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
           flushAssistant();
           return;
         }
+        if (parsed.videos) {
+          assistantVideos = parsed.videos;
+          // Force immediate flush when videos are received
+          flushAssistant();
+          return;
+        }
       } catch {
-        // Not JSON, regular text content
-        assistantContent += chunk;
+        // Not JSON, regular text content - sanitize placeholder tokens
+        const sanitized = chunk.replace(/<\s*image\s*\/?\s*>|\[image\]|<\/?video[^>]*>|\[video\]/gi, "");
+        assistantContent += sanitized;
       }
       if (!scheduled) {
         scheduled = true;
@@ -407,11 +422,12 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
         setIsLoading(false);
         abortControllerRef.current = null;
         // Save assistant message
-        const assistantMessage: Message = {
-          role: "assistant",
-          content: assistantContent,
-          images: assistantImages.length > 0 ? assistantImages : undefined,
-        };
+          const assistantMessage: Message = {
+            role: "assistant",
+            content: assistantContent,
+            images: assistantImages.length > 0 ? assistantImages : undefined,
+            videos: assistantVideos.length > 0 ? assistantVideos : undefined,
+          };
         
         if (activeConversationId) {
           // Validate assistant message
@@ -472,13 +488,25 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
       }
 
       // Handle images (jpg, png, webp, gif, etc.)
-      if (file.type.startsWith("image/") || file.type.startsWith("video/")) {
+      if (file.type.startsWith("image/")) {
         const reader = new FileReader();
         reader.onload = (event) => {
           const base64 = event.target?.result as string;
           setUploadedImages((prev) => [...prev, base64]);
           toast({
-            title: language === "es" ? "Archivo adjuntado" : "File attached",
+            title: language === "es" ? "Imagen adjuntada" : "Image attached",
+            description: file.name,
+          });
+        };
+        reader.readAsDataURL(file);
+      }
+      else if (file.type.startsWith("video/")) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const base64 = event.target?.result as string;
+          setUploadedVideos((prev) => [...prev, base64]);
+          toast({
+            title: language === "es" ? "Vídeo adjuntado" : "Video attached",
             description: file.name,
           });
         };
@@ -674,7 +702,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
       {/* Input */}
       <div className="border-t border-border bg-card/50 backdrop-blur-sm">
         <div className="container max-w-4xl mx-auto px-4 py-6">
-          {(uploadedImages.length > 0 || uploadedFiles.length > 0) && (
+          {(uploadedImages.length > 0 || uploadedVideos.length > 0 || uploadedFiles.length > 0) && (
             <div className="flex gap-2 mb-3 flex-wrap">
               {uploadedImages.map((img, idx) => (
                 <div key={`img-${idx}`} className="relative">
@@ -691,6 +719,23 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
                   </button>
                 </div>
               ))}
+
+              {uploadedVideos.map((vid, idx) => (
+                <div key={`vid-${idx}`} className="relative">
+                  <video
+                    src={vid}
+                    className="h-20 w-20 object-cover rounded-lg border border-border"
+                    controls
+                  />
+                  <button
+                    onClick={() => setUploadedVideos((prev) => prev.filter((_, i) => i !== idx))}
+                    className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 hover:bg-destructive/90"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+
               {uploadedFiles.map((file, idx) => (
                 <PdfPreview
                   key={`file-${idx}`}

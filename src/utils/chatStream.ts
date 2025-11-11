@@ -2,6 +2,7 @@ export type Message = {
   role: "user" | "assistant"; 
   content: string;
   images?: string[];
+  videos?: string[];
 };
 
 export async function streamChat({
@@ -95,15 +96,26 @@ export async function streamChat({
           const content = parsed.choices?.[0]?.delta?.content as string | undefined;
           if (content) onDelta(content);
           
-          // Handle image generation responses - check both delta and message
+          // Handle image and video generation responses - check both delta and message
           const deltaImages = parsed.choices?.[0]?.delta?.images;
           const messageImages = parsed.choices?.[0]?.message?.images;
           const images = deltaImages || messageImages;
-          
+
           if (images && images.length > 0) {
             const imageUrls = images.map((img: any) => img.image_url?.url || img.url).filter(Boolean);
             if (imageUrls.length > 0) {
               onDelta(JSON.stringify({ images: imageUrls }));
+            }
+          }
+
+          const deltaVideos = parsed.choices?.[0]?.delta?.videos;
+          const messageVideos = parsed.choices?.[0]?.message?.videos;
+          const videos = deltaVideos || messageVideos;
+
+          if (videos && videos.length > 0) {
+            const videoUrls = videos.map((v: any) => v.video_url?.url || v.url).filter(Boolean);
+            if (videoUrls.length > 0) {
+              onDelta(JSON.stringify({ videos: videoUrls }));
             }
           }
         } catch {
