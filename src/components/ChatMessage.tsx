@@ -24,7 +24,12 @@ const ChatMessage = ({ message, language = "en", onAttachImage, isStreaming = fa
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(message.content);
+      // Extract text content from message
+      const textContent = typeof message.content === 'string' 
+        ? message.content 
+        : message.content.find((c: any) => c.type === 'text')?.text || '';
+      
+      await navigator.clipboard.writeText(textContent);
       setIsCopied(true);
       toast({
         title: language === "es" ? "Copiado" : "Copied",
@@ -127,7 +132,9 @@ const ChatMessage = ({ message, language = "en", onAttachImage, isStreaming = fa
               em: ({ children }) => <em className="italic">{children}</em>,
             }}
           >
-            {message.content}
+            {typeof message.content === 'string' 
+              ? message.content 
+              : message.content.find((c: any) => c.type === 'text')?.text || ''}
           </ReactMarkdown>
           {!isUser && isStreaming && (
             <span className="inline-flex gap-1 ml-1 items-center">

@@ -201,13 +201,13 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
   const saveMessage = async (message: Message) => {
     if (!conversationId) return;
 
-    const { error } = await supabase.from("messages").insert({
+    const { error } = await supabase.from("messages").insert([{
       conversation_id: conversationId,
       role: message.role,
-      content: message.content,
+      content: typeof message.content === 'string' ? message.content : JSON.stringify(message.content),
       images: message.images || null,
       videos: message.videos || null,
-    });
+    }]);
 
     if (error) {
       // Silent fail - message saving errors are handled in handleSend
@@ -285,8 +285,12 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
       messageContent = messageContent ? messageContent + fileContents : fileContents.substring(2);
     }
     
-    if (!messageContent && uploadedImages.length === 0) {
+    // Default message for media without text
+    if (!messageContent && uploadedImages.length === 0 && uploadedVideos.length === 0) {
       messageContent = language === "es" ? "¿Qué ves en esta imagen?" : "What do you see in this image?";
+    }
+    if (!messageContent && uploadedVideos.length > 0) {
+      messageContent = language === "es" ? "¿Qué sucede en este vídeo?" : "What's happening in this video?";
     }
     
     const userMessage: Message = { 
@@ -316,14 +320,22 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
     
     setMessages((prev) => [...prev, userMessage]);
     
+    // Show video analysis indicator if videos are attached
+    if (uploadedVideos.length > 0) {
+      toastRef.current({
+        title: language === "es" ? "Analizando vídeo" : "Analyzing video",
+        description: language === "es" ? "Gemini está procesando el vídeo..." : "Gemini is processing the video...",
+      });
+    }
+    
     // Save message with the active conversation ID
-    const { error: saveError } = await supabase.from("messages").insert({
+    const { error: saveError } = await supabase.from("messages").insert([{
       conversation_id: activeConversationId,
       role: userMessage.role,
-      content: userMessage.content,
+      content: typeof userMessage.content === 'string' ? userMessage.content : JSON.stringify(userMessage.content),
       images: userMessage.images || null,
       videos: userMessage.videos || null,
-    });
+    }]);
 
     if (saveError) {
       toastRef.current({
@@ -462,13 +474,13 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
               videos: assistantMessage.videos,
             });
             
-            await supabase.from("messages").insert({
+            await supabase.from("messages").insert([{
               conversation_id: activeConversationId,
               role: assistantMessage.role,
-              content: assistantMessage.content,
+              content: typeof assistantMessage.content === 'string' ? assistantMessage.content : JSON.stringify(assistantMessage.content),
               images: assistantMessage.images || null,
               videos: assistantMessage.videos || null,
-            });
+            }]);
           } catch (error) {
             console.error("Error saving assistant message:", error);
           }

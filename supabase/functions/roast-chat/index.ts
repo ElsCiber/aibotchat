@@ -13,15 +13,19 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    // Check if the last user message contains image generation request
+    // Check if the last user message contains image or video content
     const lastMessage = messages[messages.length - 1];
     const hasImageContent = lastMessage?.content && Array.isArray(lastMessage.content);
     const textContent = hasImageContent 
       ? lastMessage.content.find((c: any) => c.type === "text")?.text 
       : lastMessage?.content;
     
+    // Check if message contains video for ANALYSIS (not generation)
+    const hasVideoForAnalysis = hasImageContent && 
+      lastMessage.content.some((c: any) => c.type === "video_url");
+    
     // Check for video generation request
-    const isVideoGenerationRequest = textContent && (
+    const isVideoGenerationRequest = !hasVideoForAnalysis && textContent && (
       (textContent.toLowerCase().includes("genera") ||
        textContent.toLowerCase().includes("crea") ||
        textContent.toLowerCase().includes("generate") ||
@@ -33,7 +37,7 @@ serve(async (req) => {
     );
 
     // Check for image generation request (excluding video requests)
-    const isImageGenerationRequest = !isVideoGenerationRequest && textContent && (
+    const isImageGenerationRequest = !isVideoGenerationRequest && !hasVideoForAnalysis && textContent && (
       (textContent.toLowerCase().includes("genera") ||
        textContent.toLowerCase().includes("crea") ||
        textContent.toLowerCase().includes("dibuja") ||
@@ -385,10 +389,13 @@ Remember: Your purpose is to assist and provide value to the user in a professio
       stream: true,
     };
 
-    // Use image generation model if requested
+    // Use appropriate model based on content type
     if (isImageGenerationRequest) {
       apiBody.model = "google/gemini-2.5-flash-image-preview";
       apiBody.modalities = ["image", "text"];
+    } else if (hasVideoForAnalysis || hasImageContent) {
+      // Use Gemini Pro for video/image analysis (better multimodal capabilities)
+      apiBody.model = "google/gemini-2.5-pro";
     } else {
       apiBody.model = "google/gemini-2.5-flash";
     }

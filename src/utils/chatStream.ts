@@ -1,6 +1,11 @@
 export type Message = { 
   role: "user" | "assistant"; 
-  content: string;
+  content: string | Array<{ 
+    type: string; 
+    text?: string; 
+    image_url?: { url: string };
+    video_url?: { url: string };
+  }>;
   images?: string[];
   videos?: string[];
 };
@@ -23,18 +28,37 @@ export async function streamChat({
   const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/roast-chat`;
 
   try {
-    // Transform messages to include images if present
+    // Transform messages to include images and videos if present
     const transformedMessages = messages.map(msg => {
-      if (msg.images && msg.images.length > 0) {
-        return {
-          role: msg.role,
-          content: [
-            { type: "text", text: msg.content },
-            ...msg.images.map(img => ({
+      const hasImages = msg.images && msg.images.length > 0;
+      const hasVideos = msg.videos && msg.videos.length > 0;
+      
+      if (hasImages || hasVideos) {
+        const contentArray: Array<{ type: string; text?: string; image_url?: { url: string }; video_url?: { url: string } }> = [
+          { type: "text", text: typeof msg.content === 'string' ? msg.content : msg.content.find((c: any) => c.type === 'text')?.text || '' }
+        ];
+        
+        if (hasImages) {
+          msg.images!.forEach(img => {
+            contentArray.push({
               type: "image_url",
               image_url: { url: img }
-            }))
-          ]
+            });
+          });
+        }
+        
+        if (hasVideos) {
+          msg.videos!.forEach(video => {
+            contentArray.push({
+              type: "video_url",
+              video_url: { url: video }
+            });
+          });
+        }
+        
+        return {
+          role: msg.role,
+          content: contentArray
         };
       }
       return { role: msg.role, content: msg.content };
