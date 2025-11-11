@@ -42,19 +42,19 @@ export const VideoGenerationSettings = () => {
             </Label>
             <RadioGroup value={mode} onValueChange={(v) => setMode(v as any)}>
               <div className="flex items-center space-x-2">
-                <RadioGroupItem value="video_first" id="video_first" />
-                <Label htmlFor="video_first" className="text-xs font-normal cursor-pointer">
-                  {language === "es" 
-                    ? "Intentar video primero (con fallback a storyboard)" 
-                    : "Try video first (fallback to storyboard)"}
-                </Label>
-              </div>
-              <div className="flex items-center space-x-2">
                 <RadioGroupItem value="storyboard_only" id="storyboard_only" />
                 <Label htmlFor="storyboard_only" className="text-xs font-normal cursor-pointer">
                   {language === "es" 
-                    ? "Siempre generar storyboard (más rápido)" 
-                    : "Always generate storyboard (faster)"}
+                    ? "Storyboard con IA (gratis, incluido en tu plan ✨)" 
+                    : "AI Storyboard (free, included in your plan ✨)"}
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="video_first" id="video_first" />
+                <Label htmlFor="video_first" className="text-xs font-normal cursor-pointer">
+                  {language === "es" 
+                    ? "Video con Replicate (requiere crédito 💳)" 
+                    : "Video with Replicate (requires credit 💳)"}
                 </Label>
               </div>
             </RadioGroup>
@@ -81,11 +81,27 @@ export const VideoGenerationSettings = () => {
             </div>
           )}
 
-          <p className="text-[10px] text-muted-foreground">
-            {language === "es"
-              ? "Si el modelo seleccionado falla, se intentará con alternativas antes de usar storyboard."
-              : "If the selected model fails, alternatives will be tried before using storyboard."}
-          </p>
+          <div className="space-y-1 pt-2 border-t border-border">
+            <p className="text-[10px] text-muted-foreground">
+              {language === "es" ? (
+                <>
+                  <strong>💡 Storyboard:</strong> Genera 6 viñetas con Lovable AI (Gemini). Gratis e incluido.<br/>
+                  <strong>💳 Replicate:</strong> Requiere agregar crédito en{" "}
+                  <a href="https://replicate.com/account/billing" target="_blank" rel="noopener noreferrer" className="underline text-primary">
+                    replicate.com/account/billing
+                  </a>
+                </>
+              ) : (
+                <>
+                  <strong>💡 Storyboard:</strong> Generates 6 panels with Lovable AI (Gemini). Free and included.<br/>
+                  <strong>💳 Replicate:</strong> Requires adding credit at{" "}
+                  <a href="https://replicate.com/account/billing" target="_blank" rel="noopener noreferrer" className="underline text-primary">
+                    replicate.com/account/billing
+                  </a>
+                </>
+              )}
+            </p>
+          </div>
         </div>
       </PopoverContent>
     </Popover>

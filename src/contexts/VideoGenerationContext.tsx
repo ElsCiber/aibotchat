@@ -16,7 +16,7 @@ interface VideoGenerationContextType {
 const VideoGenerationContext = createContext<VideoGenerationContextType | undefined>(undefined);
 
 export const VideoGenerationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [mode, setModeState] = useState<VideoGenerationMode>("video_first");
+  const [mode, setModeState] = useState<VideoGenerationMode>("storyboard_only");
   const [selectedModel, setSelectedModelState] = useState<ReplicateModel>("minimax");
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
   const [cooldownSecondsLeft, setCooldownSecondsLeft] = useState(0);

@@ -22,18 +22,26 @@ export const CooldownBanner = () => {
         {language === "es" ? (
           <>
             <span>
-              <strong>Replicate en modo de espera:</strong> Los modelos de video están temporalmente desactivados debido a problemas de crédito o límite de tasa.
+              <strong>Replicate sin crédito:</strong> Necesitas agregar crédito en{" "}
+              <a href="https://replicate.com/account/billing" target="_blank" rel="noopener noreferrer" className="underline font-semibold">
+                replicate.com/billing
+              </a>{" "}
+              para usar modelos de video. 
             </span>
             <span className="font-mono font-semibold text-orange-600">{timeText}</span>
-            <span>restantes. Mientras tanto, se generarán storyboards automáticamente.</span>
+            <span>hasta próximo intento. Usa storyboard (gratis) mientras tanto.</span>
           </>
         ) : (
           <>
             <span>
-              <strong>Replicate cooldown:</strong> Video models are temporarily disabled due to credit or rate limit issues.
+              <strong>Replicate out of credit:</strong> You need to add credit at{" "}
+              <a href="https://replicate.com/account/billing" target="_blank" rel="noopener noreferrer" className="underline font-semibold">
+                replicate.com/billing
+              </a>{" "}
+              to use video models.
             </span>
             <span className="font-mono font-semibold text-orange-600">{timeText}</span>
-            <span>remaining. Storyboards will be generated automatically instead.</span>
+            <span>until next retry. Use storyboard (free) meanwhile.</span>
           </>
         )}
       </AlertDescription>
