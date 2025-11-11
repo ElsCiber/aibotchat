@@ -68,16 +68,18 @@ serve(async (req) => {
     // Create generation with Runway ML API
     let createResponse;
     const seed = Math.floor(Math.random() * 1000000);
+    const normalizedRatio = ratio === '768:1280' ? '9:16' : ratio === '1280:768' ? '16:9' : ratio;
+    const modelUsed = hasKeyframe ? 'gen4.5' : 'veo3.1_fast';
 
     if (hasKeyframe) {
-      // Image-to-video: use gen4_turbo with /v1/image_to_video
-      console.log("Using image-to-video endpoint with gen4_turbo");
+      // Image-to-video: use gen4.5 with /v1/image_to_video
+      console.log("Using image-to-video endpoint with gen4.5");
       const createBody = {
         promptText: prompt,
         promptImage: keyframe_image,
-        model: "gen4_turbo",
+        model: modelUsed,
         duration: 5,
-        ratio: ratio,
+        ratio: normalizedRatio,
         seed: seed,
       };
 
@@ -91,13 +93,13 @@ serve(async (req) => {
         body: JSON.stringify(createBody),
       });
     } else {
-      // Text-to-video: use gen4_turbo with /v1/text_to_video
-      console.log("Using text-to-video endpoint with gen4_turbo");
+      // Text-to-video: use veo3.1_fast with /v1/text_to_video
+      console.log("Using text-to-video endpoint with veo3.1_fast");
       const createBody = {
         promptText: prompt,
-        model: "gen4_turbo",
+        model: modelUsed,
         duration: 5,
-        ratio: ratio,
+        ratio: normalizedRatio,
         seed: seed,
       };
 
@@ -130,8 +132,10 @@ serve(async (req) => {
         errorMessage += `: ${errorText}`;
       }
       
-      if (createResponse.status === 403 || createResponse.status === 401) {
-        errorMessage = "Authentication failed. Please verify your RUNWAY_API_KEY is correct and has the necessary permissions.";
+      if (createResponse.status === 401) {
+        errorMessage = "Authentication failed. Please verify your RUNWAY_API_KEY is correct and active.";
+      } else if (createResponse.status === 403) {
+        errorMessage = "Forbidden: your API key does not have access to the selected model. Try a different model (e.g., veo3.1_fast) or upgrade your plan.";
       } else if (createResponse.status === 429) {
         errorMessage = "Rate limit exceeded. Please try again later.";
       }
@@ -147,7 +151,7 @@ serve(async (req) => {
     let attempts = 0;
     const maxAttempts = 120; // 6 minutes max (120 * 3 seconds)
     let finalGeneration;
-
+    let lastPreviewFrame: string | undefined;
     while (!completed && attempts < maxAttempts) {
       await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds
       attempts++;
@@ -173,7 +177,10 @@ serve(async (req) => {
       // Send preview frame if available
       if (finalGeneration.artifacts && finalGeneration.artifacts.length > 0) {
         const previewFrame = finalGeneration.artifacts[0];
-        console.log("Preview frame available:", previewFrame);
+        lastPreviewFrame = typeof previewFrame === 'string' 
+          ? previewFrame 
+          : (previewFrame?.url || previewFrame?.image || previewFrame?.preview || previewFrame);
+        console.log("Preview frame available:", lastPreviewFrame);
       }
 
       if (finalGeneration.status === "SUCCEEDED") {
@@ -203,7 +210,7 @@ serve(async (req) => {
         keyframe_image: keyframe_image || null,
         video_url: videoUrl,
         generation_id: finalGeneration.id,
-        model: "gen4_turbo"
+        model: modelUsed
       });
 
     if (cacheError) {
@@ -218,7 +225,10 @@ serve(async (req) => {
         video_url: videoUrl,
         generation_id: finalGeneration.id,
         prompt: prompt,
-        cached: false
+        cached: false,
+        model: modelUsed,
+        ratio: normalizedRatio,
+        preview_frame: lastPreviewFrame || null
       }),
       { 
         headers: { ...corsHeaders, "Content-Type": "application/json" },
