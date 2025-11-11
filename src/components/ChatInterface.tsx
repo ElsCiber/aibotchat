@@ -385,6 +385,8 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
         const parsed = JSON.parse(chunk);
         if (parsed.images) {
           assistantImages = parsed.images;
+          // Force immediate flush when images are received
+          flushAssistant();
           return;
         }
       } catch {
