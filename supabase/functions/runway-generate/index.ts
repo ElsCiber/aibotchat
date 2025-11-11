@@ -10,14 +10,14 @@ serve(async (req) => {
 
   try {
     const { prompt, keyframe_image } = await req.json();
-    const LUMA_API_KEY = Deno.env.get("LUMA_API_KEY");
+    const RUNWAY_API_KEY = Deno.env.get("RUNWAY_API_KEY");
     
-    if (!LUMA_API_KEY) {
-      console.error("LUMA_API_KEY is not configured in environment variables");
-      throw new Error("LUMA_API_KEY is not configured. Please add your Luma API key in the secrets.");
+    if (!RUNWAY_API_KEY) {
+      console.error("RUNWAY_API_KEY is not configured in environment variables");
+      throw new Error("RUNWAY_API_KEY is not configured. Please add your Runway API key in the secrets.");
     }
     
-    console.log("LUMA_API_KEY found, length:", LUMA_API_KEY.length);
+    console.log("RUNWAY_API_KEY found, length:", RUNWAY_API_KEY.length);
 
     if (!prompt) {
       throw new Error("Prompt is required");
@@ -25,40 +25,37 @@ serve(async (req) => {
 
     console.log("Starting video generation with prompt:", prompt);
 
-    // Create generation
+    // Create generation with Runway ML API
     const createBody: any = {
-      prompt,
-      model: "ray-2",
-      resolution: "720p",
-      duration: "5s"
+      promptText: prompt,
+      model: "gen3a_turbo",
+      duration: 5,
+      ratio: "16:9",
+      seed: Math.floor(Math.random() * 1000000),
     };
 
     // Add keyframe if image is provided
     if (keyframe_image) {
-      createBody.keyframes = {
-        frame0: {
-          type: "image",
-          url: keyframe_image
-        }
-      };
+      createBody.promptImage = keyframe_image;
     }
 
-    const createResponse = await fetch("https://api.lumalabs.ai/dream-machine/v1/generations", {
+    const createResponse = await fetch("https://api.dev.runwayml.com/v1/image_to_video", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${LUMA_API_KEY}`,
+        "Authorization": `Bearer ${RUNWAY_API_KEY}`,
         "Content-Type": "application/json",
+        "X-Runway-Version": "2024-11-06",
       },
       body: JSON.stringify(createBody),
     });
 
     if (!createResponse.ok) {
       const errorText = await createResponse.text();
-      console.error("Luma API error:", createResponse.status, errorText);
+      console.error("Runway API error:", createResponse.status, errorText);
       
-      let errorMessage = `Luma API error: ${createResponse.status}`;
+      let errorMessage = `Runway API error: ${createResponse.status}`;
       if (createResponse.status === 403 || createResponse.status === 401) {
-        errorMessage = "Authentication failed. Please verify your LUMA_API_KEY is correct and has the necessary permissions.";
+        errorMessage = "Authentication failed. Please verify your RUNWAY_API_KEY is correct and has the necessary permissions.";
       } else if (createResponse.status === 429) {
         errorMessage = "Rate limit exceeded. Please try again later.";
       }
@@ -80,10 +77,11 @@ serve(async (req) => {
       attempts++;
 
       const statusResponse = await fetch(
-        `https://api.lumalabs.ai/dream-machine/v1/generations/${generation.id}`,
+        `https://api.dev.runwayml.com/v1/tasks/${generation.id}`,
         {
           headers: {
-            "Authorization": `Bearer ${LUMA_API_KEY}`,
+            "Authorization": `Bearer ${RUNWAY_API_KEY}`,
+            "X-Runway-Version": "2024-11-06",
           },
         }
       );
@@ -94,12 +92,12 @@ serve(async (req) => {
       }
 
       finalGeneration = await statusResponse.json();
-      console.log(`Status check ${attempts}:`, finalGeneration.state);
+      console.log(`Status check ${attempts}:`, finalGeneration.status);
 
-      if (finalGeneration.state === "completed") {
+      if (finalGeneration.status === "SUCCEEDED") {
         completed = true;
-      } else if (finalGeneration.state === "failed") {
-        throw new Error(`Video generation failed: ${finalGeneration.failure_reason || "Unknown error"}`);
+      } else if (finalGeneration.status === "FAILED") {
+        throw new Error(`Video generation failed: ${finalGeneration.failure || "Unknown error"}`);
       }
     }
 
@@ -107,7 +105,7 @@ serve(async (req) => {
       throw new Error("Video generation timed out");
     }
 
-    const videoUrl = finalGeneration.assets?.video;
+    const videoUrl = finalGeneration.output?.[0];
     
     if (!videoUrl) {
       throw new Error("No video URL in completed generation");
@@ -119,7 +117,7 @@ serve(async (req) => {
       JSON.stringify({ 
         video_url: videoUrl,
         generation_id: finalGeneration.id,
-        prompt: finalGeneration.request?.prompt
+        prompt: prompt
       }),
       { 
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -128,7 +126,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error("Error in luma-generate:", error);
+    console.error("Error in runway-generate:", error);
     return new Response(
       JSON.stringify({ 
         error: error instanceof Error ? error.message : "Unknown error generating video"

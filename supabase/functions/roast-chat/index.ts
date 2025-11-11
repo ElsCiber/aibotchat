@@ -271,10 +271,10 @@ GUIDELINES:
 Remember: Your purpose is to assist and provide value to the user in a professional and helpful manner.`;
     }
 
-    // Handle video generation separately (call Luma)
+    // Handle video generation separately (call Runway ML)
     if (isVideoGenerationRequest) {
       try {
-        console.log("Video generation requested, calling Luma API...");
+        console.log("Video generation requested, calling Runway ML API...");
         
         // Extract keyframe image if present in message
         let keyframe_image = null;
@@ -294,7 +294,7 @@ Remember: Your purpose is to assist and provide value to the user in a professio
               choices: [{
                 delta: {
                   role: "assistant",
-                  content: "Iniciando generación de vídeo con Luma AI..."
+                  content: "Iniciando generación de vídeo con Runway ML..."
                 }
               }]
             });
@@ -313,7 +313,7 @@ Remember: Your purpose is to assist and provide value to the user in a professio
             }, 3000);
 
             try {
-              const lumaResponse = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/luma-generate`, {
+              const runwayResponse = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/runway-generate`, {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
@@ -327,19 +327,19 @@ Remember: Your purpose is to assist and provide value to the user in a professio
 
               clearInterval(progressInterval);
 
-              if (!lumaResponse.ok) {
-                const errorData = await lumaResponse.json();
+              if (!runwayResponse.ok) {
+                const errorData = await runwayResponse.json();
                 throw new Error(errorData.error || "Failed to generate video");
               }
 
-              const lumaData = await lumaResponse.json();
+              const runwayData = await runwayResponse.json();
               
               // Send completion with video
               const videoResponse = JSON.stringify({
                 choices: [{
                   delta: {
                     content: "\n\nVídeo generado exitosamente.",
-                    videos: [lumaData.video_url]
+                    videos: [runwayData.video_url]
                   }
                 }]
               });
