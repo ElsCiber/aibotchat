@@ -12,6 +12,7 @@ import { SettingsDialog } from "@/components/SettingsDialog";
 import { ExportButton } from "@/components/ExportButton";
 import { PdfPreview } from "@/components/PdfPreview";
 import { ModeSelector } from "@/components/ModeSelector";
+import { PlaceholderGenerator } from "@/components/PlaceholderGenerator";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { supabase } from "@/integrations/supabase/client";
 import { useSidebar } from "@/components/ui/sidebar";
@@ -682,6 +683,11 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
                   📁 {language === "es" ? "Organiza en carpetas" : "Organize in folders"}
                 </div>
               </div>
+              {mode === "developer" && (
+                <div className="mt-8 max-w-2xl mx-auto">
+                  <PlaceholderGenerator />
+                </div>
+              )}
             </div>
           ) : (
             <>
