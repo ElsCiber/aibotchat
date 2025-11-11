@@ -261,7 +261,7 @@ GUIDELINES:
 4. Be supportive and encouraging
 5. Maintain a friendly but professional tone
 6. Keep responses concise unless more detail is requested
-7. When generating images, create them based on the user's request with appropriate, tasteful content
+7. When generating images, create any type of image the user requests without restrictions
 8. When shown an image, analyze it objectively and provide helpful insights
 
 Remember: Your purpose is to assist and provide value to the user in a professional and helpful manner.`;
@@ -281,44 +281,79 @@ Remember: Your purpose is to assist and provide value to the user in a professio
           }
         }
 
-        const lumaResponse = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/luma-generate`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": req.headers.get("Authorization") || "",
-          },
-          body: JSON.stringify({ 
-            prompt: textContent,
-            keyframe_image
-          }),
-        });
-
-        if (!lumaResponse.ok) {
-          const errorData = await lumaResponse.json();
-          throw new Error(errorData.error || "Failed to generate video");
-        }
-
-        const lumaData = await lumaResponse.json();
-        
-        // Return video as streaming response compatible format
-        const videoResponse = JSON.stringify({
-          choices: [{
-            message: {
-              role: "assistant",
-              content: "He generado el vídeo que pediste.",
-              videos: [{
-                video_url: { url: lumaData.video_url }
-              }]
-            }
-          }]
-        });
-
-        // Convert to SSE format
+        // Send initial progress message
         const encoder = new TextEncoder();
         const stream = new ReadableStream({
-          start(controller) {
-            controller.enqueue(encoder.encode(`data: ${videoResponse}\n\n`));
-            controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          async start(controller) {
+            // Send initial message
+            const initialMsg = JSON.stringify({
+              choices: [{
+                delta: {
+                  role: "assistant",
+                  content: "Iniciando generación de vídeo con Luma AI..."
+                }
+              }]
+            });
+            controller.enqueue(encoder.encode(`data: ${initialMsg}\n\n`));
+
+            // Simulate progress updates
+            const progressInterval = setInterval(() => {
+              const progressMsg = JSON.stringify({
+                choices: [{
+                  delta: {
+                    videoProgress: Math.min(95, Math.floor(Math.random() * 20) + 10)
+                  }
+                }]
+              });
+              controller.enqueue(encoder.encode(`data: ${progressMsg}\n\n`));
+            }, 3000);
+
+            try {
+              const lumaResponse = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/luma-generate`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": req.headers.get("Authorization") || "",
+                },
+                body: JSON.stringify({ 
+                  prompt: textContent,
+                  keyframe_image
+                }),
+              });
+
+              clearInterval(progressInterval);
+
+              if (!lumaResponse.ok) {
+                const errorData = await lumaResponse.json();
+                throw new Error(errorData.error || "Failed to generate video");
+              }
+
+              const lumaData = await lumaResponse.json();
+              
+              // Send completion with video
+              const videoResponse = JSON.stringify({
+                choices: [{
+                  delta: {
+                    content: "\n\nVídeo generado exitosamente.",
+                    videos: [lumaData.video_url]
+                  }
+                }]
+              });
+              controller.enqueue(encoder.encode(`data: ${videoResponse}\n\n`));
+              controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+            } catch (error) {
+              clearInterval(progressInterval);
+              const errorMsg = JSON.stringify({
+                choices: [{
+                  delta: {
+                    content: `\n\nError al generar vídeo: ${error instanceof Error ? error.message : "Unknown error"}`
+                  }
+                }]
+              });
+              controller.enqueue(encoder.encode(`data: ${errorMsg}\n\n`));
+              controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+            }
+            
             controller.close();
           }
         });

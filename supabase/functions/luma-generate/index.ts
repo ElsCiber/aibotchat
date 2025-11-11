@@ -13,8 +13,11 @@ serve(async (req) => {
     const LUMA_API_KEY = Deno.env.get("LUMA_API_KEY");
     
     if (!LUMA_API_KEY) {
-      throw new Error("LUMA_API_KEY is not configured");
+      console.error("LUMA_API_KEY is not configured in environment variables");
+      throw new Error("LUMA_API_KEY is not configured. Please add your Luma API key in the secrets.");
     }
+    
+    console.log("LUMA_API_KEY found, length:", LUMA_API_KEY.length);
 
     if (!prompt) {
       throw new Error("Prompt is required");
@@ -52,7 +55,15 @@ serve(async (req) => {
     if (!createResponse.ok) {
       const errorText = await createResponse.text();
       console.error("Luma API error:", createResponse.status, errorText);
-      throw new Error(`Luma API error: ${createResponse.status} - ${errorText}`);
+      
+      let errorMessage = `Luma API error: ${createResponse.status}`;
+      if (createResponse.status === 403 || createResponse.status === 401) {
+        errorMessage = "Authentication failed. Please verify your LUMA_API_KEY is correct and has the necessary permissions.";
+      } else if (createResponse.status === 429) {
+        errorMessage = "Rate limit exceeded. Please try again later.";
+      }
+      
+      throw new Error(errorMessage);
     }
 
     const generation = await createResponse.json();

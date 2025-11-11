@@ -11,6 +11,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { SettingsDialog } from "@/components/SettingsDialog";
 import { ExportButton } from "@/components/ExportButton";
 import { PdfPreview } from "@/components/PdfPreview";
+import { VideoGenerationProgress } from "@/components/VideoGenerationProgress";
 
 import { ModeSelector } from "@/components/ModeSelector";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
@@ -47,6 +48,8 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
   const [uploadedFiles, setUploadedFiles] = useState<Array<{name: string, content: string, type: string}>>([]);
   const [mode, setMode] = useState<"formal" | "developer" | null>(null);
   const [isLoadingMode, setIsLoadingMode] = useState(true);
+  const [videoProgress, setVideoProgress] = useState<number>(0);
+  const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -397,20 +400,34 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
         const parsed = JSON.parse(chunk);
         if (parsed.images) {
           assistantImages = parsed.images;
+          setIsGeneratingVideo(false);
           // Force immediate flush when images are received
           flushAssistant();
           return;
         }
         if (parsed.videos) {
-          assistantVideos = parsed.videos;
+          assistantVideos = Array.isArray(parsed.videos) ? parsed.videos : [parsed.videos];
+          setIsGeneratingVideo(false);
+          setVideoProgress(100);
           // Force immediate flush when videos are received
           flushAssistant();
+          return;
+        }
+        if (parsed.videoProgress !== undefined) {
+          setVideoProgress(parsed.videoProgress);
+          setIsGeneratingVideo(true);
           return;
         }
       } catch {
         // Not JSON, regular text content - sanitize placeholder tokens
         const sanitized = chunk.replace(/<\s*image\s*\/?\s*>|\[image\]|<\/?video[^>]*>|\[video\]/gi, "");
         assistantContent += sanitized;
+        
+        // Check if starting video generation
+        if (sanitized.toLowerCase().includes("generando") && sanitized.toLowerCase().includes("vídeo")) {
+          setIsGeneratingVideo(true);
+          setVideoProgress(5);
+        }
       }
       if (!scheduled) {
         scheduled = true;
@@ -424,6 +441,8 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
       onDelta: (chunk) => upsertAssistant(chunk),
       onDone: async () => {
         setIsLoading(false);
+        setIsGeneratingVideo(false);
+        setVideoProgress(0);
         abortControllerRef.current = null;
         // Save assistant message
           const assistantMessage: Message = {
@@ -688,7 +707,17 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
                   isStreaming={isLoading && index === messages.length - 1 && message.role === "assistant"}
                 />
               ))}
-              {isLoading && (
+              {isGeneratingVideo && (
+                <div className="flex gap-3 items-start mb-6">
+                  <div className="flex-1">
+                    <VideoGenerationProgress 
+                      progress={videoProgress} 
+                      estimatedTime={videoProgress < 30 ? "~5-6 min" : videoProgress < 60 ? "~3-4 min" : videoProgress < 90 ? "~1-2 min" : "~30 seg"}
+                    />
+                  </div>
+                </div>
+              )}
+              {isLoading && !isGeneratingVideo && (
                 <div className="flex gap-3 items-start mb-6">
                   <div className="bg-card border border-border rounded-2xl px-6 py-4 shadow-lg">
                     <div className="flex gap-1.5">
