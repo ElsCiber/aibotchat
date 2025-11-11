@@ -24,6 +24,15 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+// Debounce utility function
+const debounce = <T extends (...args: any[]) => any>(fn: T, ms: number) => {
+  let timeoutId: ReturnType<typeof setTimeout>;
+  return function (this: any, ...args: Parameters<T>) {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => fn.apply(this, args), ms);
+  };
+};
+
 interface ChatInterfaceProps {
   conversationId: string | null;
   onConversationCreated: (id: string) => void;
@@ -39,7 +48,6 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
   const [isLoadingMode, setIsLoadingMode] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const documentInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   
   const { toast } = useToast();
@@ -94,13 +102,15 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
     },
   ]);
 
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  }, []);
+
+  const debouncedScrollToBottom = useRef(debounce(scrollToBottom, 150)).current;
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    debouncedScrollToBottom();
+  }, [messages, debouncedScrollToBottom]);
 
   useEffect(() => {
     if (conversationId) {
@@ -413,38 +423,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
     });
   }, [uploadedImages, uploadedFiles, isLoading, conversationId, userId, mode, language]);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-
-    Array.from(files).forEach((file) => {
-      if (file.size > 20 * 1024 * 1024) {
-        toast({
-          title: "Error",
-          description: language === "es" ? "La imagen es demasiado grande (max 20MB)" : "Image too large (max 20MB)",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const base64 = event.target?.result as string;
-        setUploadedImages((prev) => [...prev, base64]);
-      };
-      reader.readAsDataURL(file);
-    });
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
-
-  const removeImage = (index: number) => {
-    setUploadedImages((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
 
@@ -458,8 +437,21 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
         continue;
       }
 
+      // Handle images (jpg, png, webp, gif, etc.)
+      if (file.type.startsWith("image/") || file.type.startsWith("video/")) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const base64 = event.target?.result as string;
+          setUploadedImages((prev) => [...prev, base64]);
+          toast({
+            title: language === "es" ? "Archivo adjuntado" : "File attached",
+            description: file.name,
+          });
+        };
+        reader.readAsDataURL(file);
+      }
       // Handle PDF files
-      if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+      else if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
         const reader = new FileReader();
         reader.onload = (event) => {
           const content = event.target?.result as string;
@@ -474,8 +466,9 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
           });
         };
         reader.readAsDataURL(file);
-      } else {
-        // Handle text files
+      }
+      // Handle text files
+      else {
         const reader = new FileReader();
         reader.onload = (event) => {
           const content = event.target?.result as string;
@@ -493,9 +486,13 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
       }
     }
 
-    if (documentInputRef.current) {
-      documentInputRef.current.value = "";
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
+  };
+
+  const removeImage = (index: number) => {
+    setUploadedImages((prev) => prev.filter((_, i) => i !== index));
   };
 
   const removeFile = (index: number) => {
@@ -665,17 +662,9 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/*,video/*,.pdf,.doc,.docx,.txt,.md,.json,.csv"
               multiple
-              onChange={handleImageUpload}
-              className="hidden"
-            />
-            <input
-              ref={documentInputRef}
-              type="file"
-              accept=".pdf,.doc,.docx,.txt,.md"
-              multiple
-              onChange={handleDocumentUpload}
+              onChange={handleFileUpload}
               className="hidden"
             />
             <Button
@@ -683,16 +672,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
               size="icon"
               onClick={() => fileInputRef.current?.click()}
               disabled={isLoading}
-              title={language === "es" ? "Adjuntar imagen" : "Attach image"}
-            >
-              <ImageIcon className="h-5 w-5" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => documentInputRef.current?.click()}
-              disabled={isLoading}
-              title={language === "es" ? "Adjuntar documento" : "Attach document"}
+              title={language === "es" ? "Adjuntar archivos (imágenes, vídeos, PDFs, documentos)" : "Attach files (images, videos, PDFs, documents)"}
             >
               <Paperclip className="h-5 w-5" />
             </Button>
