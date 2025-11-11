@@ -102,7 +102,11 @@ const ChatMessage = ({ message, language = "en", onAttachImage, isStreaming = fa
             {message.content}
           </ReactMarkdown>
           {!isUser && isStreaming && (
-            <span className="inline-block w-2 h-5 ml-1 bg-foreground animate-pulse" style={{ animation: 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite' }} />
+            <span className="inline-flex gap-1 ml-1 items-center">
+              <span className="w-1 h-1 bg-foreground rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+              <span className="w-1 h-1 bg-foreground rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+              <span className="w-1 h-1 bg-foreground rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+            </span>
           )}
         </div>
         

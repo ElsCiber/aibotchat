@@ -52,6 +52,32 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
   const abortControllerRef = useRef<AbortController | null>(null);
   
   const { toast } = useToast();
+  
+  // Autosave draft to localStorage
+  const DRAFT_KEY = `chat_draft_${conversationId || 'new'}`;
+  
+  useEffect(() => {
+    // Load draft on mount
+    const savedDraft = localStorage.getItem(DRAFT_KEY);
+    if (savedDraft && inputRef.current) {
+      inputRef.current.value = savedDraft;
+    }
+  }, [DRAFT_KEY]);
+  
+  const saveDraft = useCallback(
+    debounce((value: string) => {
+      if (value.trim()) {
+        localStorage.setItem(DRAFT_KEY, value);
+      } else {
+        localStorage.removeItem(DRAFT_KEY);
+      }
+    }, 500),
+    [DRAFT_KEY]
+  );
+  
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    saveDraft(e.target.value);
+  };
   const { language, setLanguage, t } = useLanguage();
   const { toggleSidebar } = useSidebar();
   const navigate = useNavigate();
@@ -326,6 +352,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
     }
     
     if (inputRef.current) inputRef.current.value = "";
+    localStorage.removeItem(DRAFT_KEY); // Clear draft after sending
     setUploadedImages([]);
     setUploadedFiles([]);
     setIsLoading(true);
@@ -692,6 +719,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
             <Input
               ref={inputRef}
               defaultValue=""
+              onChange={handleInputChange}
               onKeyDown={handleKeyPress}
               placeholder={t("placeholder")}
               className="flex-1 bg-background border-border focus-visible:ring-primary"
