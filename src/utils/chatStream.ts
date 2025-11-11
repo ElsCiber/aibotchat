@@ -10,12 +10,14 @@ export async function streamChat({
   onDelta,
   onDone,
   onError,
+  signal,
 }: {
   messages: Message[];
   mode?: "roast" | "formal" | "developer";
   onDelta: (deltaText: string) => void;
   onDone: () => void;
   onError: (error: string) => void;
+  signal?: AbortSignal;
 }) {
   const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/roast-chat`;
 
@@ -44,6 +46,7 @@ export async function streamChat({
         Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
       },
       body: JSON.stringify({ messages: transformedMessages, mode }),
+      signal,
     });
 
     if (!resp.ok) {
@@ -128,6 +131,10 @@ export async function streamChat({
 
     onDone();
   } catch (e) {
-    onError(e instanceof Error ? e.message : "Something went wrong");
+    if (e instanceof Error && e.name === 'AbortError') {
+      onError("Generación detenida");
+    } else {
+      onError(e instanceof Error ? e.message : "Something went wrong");
+    }
   }
 }

@@ -13,9 +13,10 @@ interface ChatMessageProps {
   message: Message;
   language?: string;
   onAttachImage?: (imageUrl: string) => void;
+  isStreaming?: boolean;
 }
 
-const ChatMessage = ({ message, language = "en", onAttachImage }: ChatMessageProps) => {
+const ChatMessage = ({ message, language = "en", onAttachImage, isStreaming = false }: ChatMessageProps) => {
   const isUser = message.role === "user";
   const [isCopied, setIsCopied] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -100,6 +101,9 @@ const ChatMessage = ({ message, language = "en", onAttachImage }: ChatMessagePro
           >
             {message.content}
           </ReactMarkdown>
+          {!isUser && isStreaming && (
+            <span className="inline-block w-2 h-5 ml-1 bg-foreground animate-pulse" style={{ animation: 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite' }} />
+          )}
         </div>
         
         {/* User uploaded images - no download button */}

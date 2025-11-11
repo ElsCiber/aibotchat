@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { streamChat, Message } from "@/utils/chatStream";
 import ChatMessage from "./ChatMessage";
 import { messageSchema, conversationTitleSchema } from "@/utils/validation";
-import { Send, Globe, Image as ImageIcon, X, Menu, LogOut, Paperclip } from "lucide-react";
+import { Send, Globe, Image as ImageIcon, X, Menu, LogOut, Paperclip, Square } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { SettingsDialog } from "@/components/SettingsDialog";
@@ -49,6 +49,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   
   const { toast } = useToast();
   const { language, setLanguage, t } = useLanguage();
@@ -328,6 +329,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
     setUploadedImages([]);
     setUploadedFiles([]);
     setIsLoading(true);
+    abortControllerRef.current = new AbortController();
 
     let assistantContent = "";
     let assistantImages: string[] = [];
@@ -374,6 +376,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
       onDelta: (chunk) => upsertAssistant(chunk),
       onDone: async () => {
         setIsLoading(false);
+        abortControllerRef.current = null;
         // Save assistant message
         const assistantMessage: Message = {
           role: "assistant",
@@ -414,12 +417,14 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
       },
       onError: (error) => {
         setIsLoading(false);
+        abortControllerRef.current = null;
         toastRef.current({
           title: "Error",
           description: error,
           variant: "destructive",
         });
       },
+      signal: abortControllerRef.current?.signal,
     });
   }, [uploadedImages, uploadedFiles, isLoading, conversationId, userId, mode, language]);
 
@@ -513,6 +518,13 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
       handleSend();
     }
   }, [handleSend]);
+
+  const handleStop = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+  };
 
   return (
     <div className="flex flex-col h-screen bg-gradient-to-b from-background to-card">
@@ -610,6 +622,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
                   message={message} 
                   language={language}
                   onAttachImage={handleAttachImage}
+                  isStreaming={isLoading && index === messages.length - 1 && message.role === "assistant"}
                 />
               ))}
               {isLoading && (
@@ -683,13 +696,23 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
               placeholder={t("placeholder")}
               className="flex-1 bg-background border-border focus-visible:ring-primary"
             />
-            <Button
-              onClick={handleSend}
-              disabled={isLoading || !mode}
-              className="bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90"
-            >
-              <Send className="w-5 h-5" />
-            </Button>
+            {isLoading ? (
+              <Button
+                onClick={handleStop}
+                variant="destructive"
+                className="shrink-0"
+              >
+                <Square className="w-5 h-5" />
+              </Button>
+            ) : (
+              <Button
+                onClick={handleSend}
+                disabled={!mode}
+                className="bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90"
+              >
+                <Send className="w-5 h-5" />
+              </Button>
+            )}
           </div>
         </div>
       </div>
