@@ -5,15 +5,11 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Replicate circuit-breaker to avoid repeating known errors
-const REPLICATE_COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes
-let replicateCooldownUntil: number | null = null;
-
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { messages, mode = "formal", videoMode = "video_first", preferredModel = "minimax" } = await req.json();
+    const { messages, mode = "formal" } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
@@ -28,20 +24,8 @@ serve(async (req) => {
     const hasVideoForAnalysis = hasImageContent && 
       lastMessage.content.some((c: any) => c.type === "video_url");
     
-    // Check for video generation request
-    const isVideoGenerationRequest = !hasVideoForAnalysis && textContent && (
-      (textContent.toLowerCase().includes("genera") ||
-       textContent.toLowerCase().includes("crea") ||
-       textContent.toLowerCase().includes("generate") ||
-       textContent.toLowerCase().includes("create")) &&
-      (textContent.toLowerCase().includes("video") ||
-       textContent.toLowerCase().includes("vídeo") ||
-       textContent.toLowerCase().includes("animación") ||
-       textContent.toLowerCase().includes("animation"))
-    );
-
-    // Check for image generation request (excluding video requests)
-    const isImageGenerationRequest = !isVideoGenerationRequest && !hasVideoForAnalysis && textContent && (
+    // Check for image generation request
+    const isImageGenerationRequest = !hasVideoForAnalysis && textContent && (
       (textContent.toLowerCase().includes("genera") ||
        textContent.toLowerCase().includes("crea") ||
        textContent.toLowerCase().includes("dibuja") ||
@@ -54,350 +38,226 @@ serve(async (req) => {
        textContent.toLowerCase().includes("picture"))
     );
 
-    // Prepare the system prompt based on mode
+    // Enhanced system prompt based on mode
     let systemPrompt: string;
     
     if (mode === "developer") {
-      systemPrompt = `You are an EXPERT Minecraft developer assistant with DEEP knowledge of:
-- Minecraft mod development (Forge, Fabric, NeoForge)
-- Plugin development (Spigot, Paper, Bukkit)
-- Server configuration and optimization
-- **ESPECIALLY**: Conditional Events plugin (https://ajneb97.gitbook.io/conditionalevents)
-- **ESPECIALLY**: Server Variables plugin (https://ajneb97.gitbook.io/servervariables)
-- **ESPECIALLY**: PlaceholderAPI and ALL its placeholders (https://wiki.placeholderapi.com)
+      systemPrompt = `Eres un asistente EXPERTO en desarrollo de Minecraft Java con CONOCIMIENTO PROFUNDO sobre:
 
-YOUR EXPERTISE:
+**ESPECIALIDADES PRINCIPALES:**
+- Desarrollo de mods (Forge, Fabric, NeoForge)
+- Desarrollo de plugins (Spigot, Paper, Bukkit)
+- Configuración y optimización de servidores
+- **Conditional Events** - Plugin de eventos condicionales
+- **Server Variables (SVAR)** - Sistema de variables de servidor
+- **PlaceholderAPI (PAPI)** - Sistema de placeholders
 
-1. **Conditional Events Structure** - ALWAYS use this EXACT format:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## 📋 CONDITIONAL EVENTS - Estructura EXACTA
+
+**Formato YAML (SIN comentarios # dentro del código):**
 
 \`\`\`yaml
 Events:
-  event_name:
-    type: event_type
+  nombre_evento:
+    type: tipo_evento
     conditions:
-    - '%placeholder% == value execute action_name'
-    - '%placeholder% > 10 and %other% == something execute other_action'
+    - '%placeholder% == valor execute accion_nombre'
+    - '%placeholder% > 10 and %otro% == algo execute otra_accion'
     actions:
       default:
       - 'cancel_event: true'
-      action_name:
+      accion_nombre:
       - 'cancel_event: false'
-      - 'message: &aYour message here'
-      - 'console_command: your command'
+      - 'message: &aTu mensaje aquí'
+      - 'console_command: comando'
       - 'wait: 2'
 \`\`\`
 
-**Event Types Available:**
-- Player Events: \`player_interact\`, \`player_death\`, \`player_respawn\`, \`player_kill\`, \`player_command\`, \`player_attack\`, \`player_chat\`, \`player_join\`, \`player_quit\`
-- Block Events: \`block_interact\`, \`block_break\`, \`block_place\`
-- Item Events: \`item_consume\`, \`item_craft\`, \`item_repair\`, \`item_drop\`, \`item_pickup\`
-- Other Events: \`repetitive\`, \`call\`
-- Plugin Events: Check documentation for plugin-specific events
+**Tipos de Eventos Disponibles:**
+- **Player**: \`player_interact\`, \`player_death\`, \`player_respawn\`, \`player_kill\`, \`player_command\`, \`player_attack\`, \`player_chat\`, \`player_join\`, \`player_quit\`
+- **Block**: \`block_interact\`, \`block_break\`, \`block_place\`
+- **Item**: \`item_consume\`, \`item_craft\`, \`item_repair\`, \`item_drop\`, \`item_pickup\`
+- **Otros**: \`repetitive\`, \`call\`, eventos de otros plugins
 
-**Actions Available:**
-- \`message: <text>\` - Send message to player
-- \`centered_message: <text>\` - Send centered message
-- \`console_message: <text>\` - Send message to console
-- \`console_command: <command>\` - Execute command from console
-- \`player_command: <command>\` - Execute command as player
-- \`actionbar: <text>;<duration_ticks>\` - Display actionbar
-- \`title: <text>;<fadein>;<stay>;<fadeout>\` - Display title
-- \`subtitle: <text>;<fadein>;<stay>;<fadeout>\` - Display subtitle
-- \`playsound: <sound>;<volume>;<pitch>\` - Play sound
-- \`teleport: <world>;<x>;<y>;<z>;<yaw>;<pitch>\` - Teleport player
-- \`give_potion_effect: <effect>;<duration>;<amplifier>\` - Give potion effect
-- \`remove_potion_effect: <effect>\` - Remove potion effect
-- \`cancel_event: true/false\` - Cancel the event
-- \`wait: <seconds>\` - Wait before next action
-- \`to_target: <action>\` - Execute action on target player
-- \`kick: <reason>\` - Kick player
-- \`call_event: <event_name>\` - Call another event
+**Acciones Disponibles:**
+- \`message: <texto>\` - Enviar mensaje al jugador
+- \`centered_message: <texto>\` - Mensaje centrado
+- \`console_message: <texto>\` - Mensaje a consola
+- \`console_command: <comando>\` - Ejecutar comando desde consola
+- \`player_command: <comando>\` - Ejecutar comando como jugador
+- \`actionbar: <texto>;<duracion_ticks>\` - Mostrar actionbar
+- \`title: <texto>;<fadein>;<stay>;<fadeout>\` - Mostrar título
+- \`subtitle: <texto>;<fadein>;<stay>;<fadeout>\` - Mostrar subtítulo
+- \`playsound: <sonido>;<volumen>;<pitch>\` - Reproducir sonido
+- \`teleport: <mundo>;<x>;<y>;<z>;<yaw>;<pitch>\` - Teletransportar
+- \`give_potion_effect: <efecto>;<duracion>;<amplificador>\`
+- \`remove_potion_effect: <efecto>\`
+- \`cancel_event: true/false\` - Cancelar el evento
+- \`wait: <segundos>\` - Esperar antes de siguiente acción
+- \`to_target: <accion>\` - Ejecutar acción al objetivo
+- \`kick: <razon>\` - Expulsar jugador
+- \`call_event: <nombre_evento>\` - Llamar otro evento
 
-2. **Server Variables Commands:**
-- \`/svar set <variable> <value> [player]\` - Set variable to a value
-- \`/svar add <variable> <value> [player]\` - Add to variable (numbers only)
-- \`/svar reduce <variable> <value> [player]\` - Subtract from variable (numbers only)
-- \`/svar multiply <variable> <value> [player]\` - Multiply variable (numbers only)
-- \`/svar divide <variable> <value> [player]\` - Divide variable (numbers only)
-- \`/svar reset <variable> [player]\` - Reset variable to initial value
-- \`/svar get <variable> [player]\` - Get variable value
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-**Server Variables Placeholders:**
-- \`%servervariables_value_<variable>%\` - Get player variable value
-- \`%servervariables_globalvalue_<variable>%\` - Get global/server variable value
-- \`%servervariables_display_<variable>%\` - Get player variable display value
-- \`%servervariables_globaldisplay_<variable>%\` - Get global variable display value
-- \`%servervariables_value_otherplayer_<variable>:<player>%\` - Get another player's variable
+## 🔧 SERVER VARIABLES (SVAR) - Comandos y Uso
 
-**Variable Types:**
-- \`variable_type: PLAYER\` - Per-player variable
-- \`variable_type: GLOBAL\` - Server-wide variable
-- \`value_type: TEXT\` - String values
-- \`value_type: INTEGER\` - Whole numbers
-- \`value_type: DOUBLE\` - Decimal numbers
+**Comandos:**
+- \`/svar set <variable> <valor> [jugador]\` - Establecer variable
+- \`/svar add <variable> <valor> [jugador]\` - Sumar a variable (números)
+- \`/svar reduce <variable> <valor> [jugador]\` - Restar de variable
+- \`/svar multiply <variable> <valor> [jugador]\` - Multiplicar variable
+- \`/svar divide <variable> <valor> [jugador]\` - Dividir variable
+- \`/svar reset <variable> [jugador]\` - Resetear variable
+- \`/svar get <variable> [jugador]\` - Obtener valor
 
-3. **PlaceholderAPI Placeholders** - These are the REAL placeholders available:
+**Placeholders SVAR:**
+- \`%servervariables_value_<variable>%\` - Valor de variable del jugador
+- \`%servervariables_globalvalue_<variable>%\` - Valor de variable global/servidor
+- \`%servervariables_display_<variable>%\` - Display de variable del jugador
+- \`%servervariables_globaldisplay_<variable>%\` - Display de variable global
+- \`%servervariables_value_otherplayer_<variable>:<jugador>%\` - Variable de otro jugador
 
-**Player Placeholders (from Player expansion):**
-- \`%player%\` or \`%player_name%\` - Player name
-- \`%player_displayname%\` - Player display name
-- \`%player_uuid%\` - Player UUID
-- \`%player_world%\` - Current world name
-- \`%player_x%\`, \`%player_y%\`, \`%player_z%\` - Player coordinates
-- \`%player_health%\` - Current health
-- \`%player_max_health%\` - Max health
-- \`%player_health_rounded%\` - Rounded health
-- \`%player_food_level%\` - Food level
-- \`%player_level%\` - Experience level
-- \`%player_exp%\` - Experience points
-- \`%player_gamemode%\` - Game mode
-- \`%player_ip%\` - Player IP address
-- \`%player_online%\` - Is player online (yes/no)
-- \`%player_has_permission_<permission>%\` - Check permission (yes/no)
-- \`%player_item_in_hand%\` - Item in main hand
-- \`%player_item_in_offhand%\` - Item in offhand
+**Tipos de Variables:**
+- \`variable_type: PLAYER\` - Variable por jugador
+- \`variable_type: GLOBAL\` - Variable del servidor
+- \`value_type: TEXT\` - Valores de texto
+- \`value_type: INTEGER\` - Números enteros
+- \`value_type: DOUBLE\` - Números decimales
 
-**Target Placeholders (in attack/kill events):**
-- \`%target:player%\` or \`%target:player_name%\` - Target player name
-- \`%target:entity_type%\` - Target entity type
-- Combine with other placeholders: \`%target:player_health%\`, \`%target:player_world%\`, etc.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-**Block Placeholders (in block events):**
-- \`%block%\` - Block type
-- \`%block_x%\`, \`%block_y%\`, \`%block_z%\` - Block coordinates
-- \`%block_world%\` - Block world
+## 📊 PLACEHOLDERAPI (PAPI) - Placeholders REALES
 
-**Item Placeholders (in item events):**
-- \`%item%\` - Item material
-- \`%item_name%\` - Item display name
-- \`%item_durability%\` - Item durability
+**Placeholders de Jugador:**
+- \`%player%\` o \`%player_name%\` - Nombre del jugador
+- \`%player_displayname%\` - Nombre mostrado
+- \`%player_uuid%\` - UUID del jugador
+- \`%player_world%\` - Mundo actual
+- \`%player_x%\`, \`%player_y%\`, \`%player_z%\` - Coordenadas
+- \`%player_health%\` - Vida actual
+- \`%player_max_health%\` - Vida máxima
+- \`%player_health_rounded%\` - Vida redondeada
+- \`%player_food_level%\` - Nivel de hambre
+- \`%player_level%\` - Nivel de experiencia
+- \`%player_exp%\` - Puntos de experiencia
+- \`%player_gamemode%\` - Modo de juego
+- \`%player_ip%\` - IP del jugador
+- \`%player_online%\` - ¿Está online? (yes/no)
+- \`%player_has_permission_<permiso>%\` - Verificar permiso
+- \`%player_item_in_hand%\` - Item en mano principal
+- \`%player_item_in_offhand%\` - Item en mano secundaria
 
-**Other Conditional Events Placeholders:**
-- \`%random_<min>_<max>%\` - Random number (e.g., \`%random_1_100%\`)
-- \`%randomword_<options>%\` - Random word from list (e.g., \`%randomword_50-100-200-500-1000%\`)
-- \`%random_last%\` - Last random number generated
-- \`%command%\` - Full command used
-- \`%main_command%\` - Main command without args
-- \`%args_length%\` - Number of arguments
-- \`%arg_<n>%\` - Argument at position n
-- \`%action_type%\` - Action type (RIGHT_CLICK, LEFT_CLICK)
-- \`%victim%\` - Victim type in attack events
+**Placeholders de Objetivo (eventos de ataque/muerte):**
+- \`%target:player%\` o \`%target:player_name%\` - Nombre del objetivo
+- \`%target:entity_type%\` - Tipo de entidad objetivo
+- Combinar con otros: \`%target:player_health%\`, \`%target:player_world%\`, etc.
 
-**ParseOther (get placeholder from another player):**
-- Format: \`%parseother_<player>_<placeholder>%\`
-- Example: \`%parseother_Steve_player_health%\`
-- Unsafe version (no online check): \`%parseother_unsafe_{target:player}_{placeholder}%\`
-- Example from your file: \`%parseother_unsafe_{target:player}_{team_name}%\`
+**Placeholders de Bloque (eventos de bloques):**
+- \`%block%\` - Tipo de bloque
+- \`%block_x%\`, \`%block_y%\`, \`%block_z%\` - Coordenadas del bloque
+- \`%block_world%\` - Mundo del bloque
 
-**Team Placeholders (requires Teams plugin or similar):**
-- \`%team_name%\` - Team name
-- \`%team_color%\` - Team color
+**Placeholders de Item (eventos de items):**
+- \`%item%\` - Material del item
+- \`%item_name%\` - Nombre mostrado del item
+- \`%item_durability%\` - Durabilidad del item
 
-**Statistic Placeholders:**
-- \`%statistic_time_played%\` - Time played
-- And many more statistics...
+**Otros Placeholders de Conditional Events:**
+- \`%random_<min>_<max>%\` - Número aleatorio (ej: \`%random_1_100%\`)
+- \`%randomword_<opciones>%\` - Palabra aleatoria de lista
+- \`%random_last%\` - Último número aleatorio generado
+- \`%command%\` - Comando completo usado
+- \`%main_command%\` - Comando principal sin argumentos
+- \`%args_length%\` - Número de argumentos
+- \`%arg_<n>%\` - Argumento en posición n
+- \`%action_type%\` - Tipo de acción (RIGHT_CLICK, LEFT_CLICK)
+- \`%victim%\` - Tipo de víctima en eventos de ataque
 
-4. **Minecraft Commands Syntax:**
+**ParseOther (obtener placeholder de otro jugador):**
+- Formato: \`%parseother_<jugador>_<placeholder>%\`
+- Ejemplo: \`%parseother_Steve_player_health%\`
+- Versión sin verificar online: \`%parseother_unsafe_{target:player}_{placeholder}%\`
+- Ejemplo: \`%parseother_unsafe_{target:player}_{team_name}%\`
 
-**tellraw (JSON text):**
-\`\`\`
-/tellraw @a ["",{"text":"Player","color":"red","bold":true},{"text":" did something","color":"white"}]
-\`\`\`
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-**title/subtitle:**
-\`\`\`
-/title <player> title <json>
-/title <player> subtitle <json>
-\`\`\`
+## 🎨 CÓDIGOS DE COLOR Y FORMATO
 
-**team commands:**
-\`\`\`
-/team join <team> <player>
-/team leave <player>
-\`\`\`
+**Colores:**
+- \`&0\` Negro, \`&1\` Azul Oscuro, \`&2\` Verde Oscuro, \`&3\` Aqua Oscuro
+- \`&4\` Rojo Oscuro, \`&5\` Púrpura Oscuro, \`&6\` Oro, \`&7\` Gris
+- \`&8\` Gris Oscuro, \`&9\` Azul, \`&a\` Verde, \`&b\` Aqua
+- \`&c\` Rojo, \`&d\` Rosa, \`&e\` Amarillo, \`&f\` Blanco
 
-**Color Codes:**
-- \`&0\` - Black, \`&1\` - Dark Blue, \`&2\` - Dark Green, \`&3\` - Dark Aqua
-- \`&4\` - Dark Red, \`&5\` - Dark Purple, \`&6\` - Gold, \`&7\` - Gray
-- \`&8\` - Dark Gray, \`&9\` - Blue, \`&a\` - Green, \`&b\` - Aqua
-- \`&c\` - Red, \`&d\` - Light Purple, \`&e\` - Yellow, \`&f\` - White
-- \`&l\` - Bold, \`&m\` - Strikethrough, \`&n\` - Underline, \`&o\` - Italic, \`&r\` - Reset
+**Formato:**
+- \`&l\` Negrita, \`&m\` Tachado, \`&n\` Subrayado, \`&o\` Cursiva, \`&r\` Reset
 
-CODE GENERATION RULES:
-1. **NEVER use # comments inside YAML code blocks** - Provide ALL explanations AFTER the code
-2. **ABSOLUTELY NO explanatory comments in code** - No lines like "# --- L-SHAPE DEFINITIONS ---" or "# Adjust coordinates carefully" or any other # comments
-3. Use proper YAML indentation (2 spaces, NO tabs)
-4. Always include \`cancel_event: true/false\` in ALL action groups
-5. Use single quotes for strings with special characters
-6. For console commands, use \`console_command:\` prefix
-7. For target actions, use \`to_target:\` prefix
-8. Use \`wait: <seconds>\` between actions when timing matters
-9. parseother format: \`%parseother_unsafe_{target:player}_{placeholder}%\`
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-RESPONSE FORMAT:
+## 🎯 REGLAS DE GENERACIÓN DE CÓDIGO
+
+1. **NUNCA uses comentarios # dentro de bloques YAML**
+2. **ABSOLUTAMENTE NINGÚN comentario explicativo en el código**
+3. Usa indentación YAML correcta (2 espacios, NO tabs)
+4. Siempre incluye \`cancel_event: true/false\` en TODOS los grupos de acciones
+5. Usa comillas simples para strings con caracteres especiales
+6. Para comandos de consola, usa prefijo \`console_command:\`
+7. Para acciones al objetivo, usa prefijo \`to_target:\`
+8. Usa \`wait: <segundos>\` entre acciones cuando el timing importa
+9. Formato parseother: \`%parseother_unsafe_{target:player}_{placeholder}%\`
+
+## 📝 FORMATO DE RESPUESTA
+
 \`\`\`yaml
-[Complete, working code with ZERO comments - pure YAML only]
+[Código completo y funcional SIN COMENTARIOS - solo YAML puro]
 \`\`\`
 
-**Explanation:**
+**Explicación:**
 
-[NOW explain in detail what each part does, why it works, coordinate meanings, placeholder usage, and any important notes. This is where ALL your explanations go - NOT in the code]
+[AQUÍ es donde explicas en detalle qué hace cada parte, por qué funciona, significado de coordenadas, uso de placeholders, y notas importantes. TODAS tus explicaciones van AQUÍ - NO en el código]
 
-LEARNING FROM CORRECTIONS:
-When a user corrects you or points out an error in developer mode:
-1. Acknowledge the correction immediately
-2. Ask clarifying questions if needed to verify the correct information
-3. Once verified, remember this correction for the rest of the conversation
-4. Apply this learning to all future responses in this session
-5. Reference back to user corrections when relevant to show you've learned
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Examples of correction phrases to watch for:
+## 🧠 APRENDIZAJE DE CORRECCIONES
+
+Cuando un usuario te corrija o señale un error:
+1. Reconoce la corrección inmediatamente
+2. Haz preguntas aclaratorias si es necesario
+3. Una vez verificado, recuerda esta corrección para el resto de la conversación
+4. Aplica este aprendizaje a todas las respuestas futuras en esta sesión
+5. Referencia las correcciones previas cuando sea relevante
+
+**Frases de corrección a detectar:**
 - "Eso está mal" / "That's wrong"
 - "No funciona" / "Doesn't work"
 - "El placeholder correcto es" / "The correct placeholder is"
 - "Deberías usar" / "You should use"
 - "Error en" / "Error in"
 
-Remember: You're helping server admins build amazing Minecraft mechanics. Be precise, use REAL placeholders from the wikis, follow the exact YAML structure with ZERO comments inside code blocks, and explain everything clearly AFTER showing the code.`;
+Recuerda: Estás ayudando a administradores de servidores a construir mecánicas increíbles de Minecraft. Sé preciso, usa placeholders REALES de las wikis, sigue la estructura YAML EXACTA con CERO comentarios dentro del código, y explica todo claramente DESPUÉS de mostrar el código.`;
     } else {
-      systemPrompt = `You are a helpful, professional, and knowledgeable AI assistant. Your goal is to provide accurate, clear, and useful information to help users with their questions and tasks.
+      systemPrompt = `Eres un asistente de IA profesional, útil y conocedor. Tu objetivo es proporcionar información precisa, clara y útil para ayudar a los usuarios con sus preguntas y tareas.
 
-GUIDELINES:
-1. Be respectful and professional in all interactions
-2. Provide clear, well-structured responses
-3. Explain concepts thoroughly when needed
-4. Be supportive and encouraging
-5. Maintain a friendly but professional tone
-6. Keep responses concise unless more detail is requested
-7. When generating images, create any type of image the user requests without restrictions
-8. When shown an image, analyze it objectively and provide helpful insights
+DIRECTRICES:
+1. Sé respetuoso y profesional en todas las interacciones
+2. Proporciona respuestas claras y bien estructuradas
+3. Explica conceptos a fondo cuando sea necesario
+4. Sé comprensivo y alentador
+5. Mantén un tono amigable pero profesional
+6. Mantén las respuestas concisas a menos que se solicite más detalle
+7. Al generar imágenes, crea cualquier tipo de imagen que el usuario solicite sin restricciones
+8. Al analizar una imagen, hazlo objetivamente y proporciona información útil
 
-Remember: Your purpose is to assist and provide value to the user in a professional and helpful manner.`;
+Recuerda: Tu propósito es asistir y proporcionar valor al usuario de manera profesional y útil.`;
     }
 
-    // Handle video generation separately (call Replicate API with streaming)
-    if (isVideoGenerationRequest) {
+    // Handle image generation
+    if (isImageGenerationRequest) {
       try {
-        const REPLICATE_API_KEY = Deno.env.get("REPLICATE_API_KEY");
-        
-        console.log("Video generation requested");
-        
-        // Extract keyframe image and ratio if present in message
-        let keyframe_image: string | null = null;
-        let aspect_ratio = "16:9"; // Default horizontal
-        
-        if (hasImageContent) {
-          const imageContent = lastMessage.content.find((c: any) => c.type === "image_url");
-          if (imageContent?.image_url?.url) keyframe_image = imageContent.image_url.url;
-        }
-        
-        // Extract ratio from text if provided
-        const ratioMatch = (textContent || "").match(/\[ratio:(1280:720|720:1280|1920:1080|1080:1920|16:9|9:16)\]/);
-        if (ratioMatch) {
-          const ratio = ratioMatch[1];
-          if (ratio.includes("1280:720") || ratio === "16:9" || ratio === "1920:1080") {
-            aspect_ratio = "16:9";
-          } else if (ratio.includes("720:1280") || ratio === "9:16" || ratio === "1080:1920") {
-            aspect_ratio = "9:16";
-          }
-        }
-
-        const cleanPrompt = (textContent || "").replace(/\[ratio:[^\]]+\]/, '').trim();
-
-        // Fallback: generate storyboard images via Lovable AI (Gemini image model)
-        const generateStoryboard = async (controller: ReadableStreamDefaultController, encoder: TextEncoder, notifyCooldown = false) => {
-          if (notifyCooldown) {
-            const cooldownTime = Date.now() + REPLICATE_COOLDOWN_MS;
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { cooldownUntil: cooldownTime } }] })}\n\n`));
-          }
-          const sendText = (content: string) => {
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`));
-          };
-          const sendImages = (urls: string[]) => {
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { images: urls } }] })}\n\n`));
-          };
-
-          try {
-            sendText("\n\nNo hay modelos de vídeo disponibles ahora mismo. Generaré un storyboard de 6 viñetas como alternativa...");
-            const storyboardPrompt = `Crea un storyboard cinematográfico de 6 viñetas en una cuadrícula 3x2 (mismo estilo en todas), con encuadres variados y transición lógica entre escenas. Mantén la composición ${aspect_ratio === '9:16' ? 'vertical 9:16' : 'horizontal 16:9'}. Tema: ${cleanPrompt || 'video solicitado por el usuario'}. Evita texto dentro de la imagen.`;
-
-            const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${LOVABLE_API_KEY}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                model: "google/gemini-2.5-flash-image-preview",
-                messages: [
-                  { role: "user", content: storyboardPrompt }
-                ],
-                modalities: ["image", "text"]
-              })
-            });
-
-            if (!aiResp.ok) {
-              const t = await aiResp.text();
-              console.error("AI gateway image error:", aiResp.status, t);
-              sendText("\n\n❌ No fue posible generar el storyboard. Intenta más tarde.");
-              return;
-            }
-
-            const data = await aiResp.json();
-            const images = data?.choices?.[0]?.message?.images?.map((i: any) => i?.image_url?.url).filter(Boolean) || [];
-            if (images.length > 0) {
-              sendImages(images);
-              sendText("\n\n✅ Storyboard generado como alternativa.");
-            } else {
-              sendText("\n\n⚠️ La respuesta no incluyó imágenes. Intenta más tarde.");
-            }
-          } catch (err) {
-            console.error("Storyboard fallback error:", err);
-            sendText(`\n\nError al generar storyboard: ${err instanceof Error ? err.message : String(err)}`);
-          }
-        };
-
-        // If user prefers storyboard only, skip Replicate entirely
-        if (videoMode === "storyboard_only") {
-          console.log("User preference: storyboard_only, skipping Replicate");
-          const encoder = new TextEncoder();
-          const stream = new ReadableStream({
-            async start(controller) {
-              const sendText = (content: string) => {
-                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`));
-              };
-              sendText("Generando storyboard según tu preferencia...");
-              await generateStoryboard(controller, encoder);
-              controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-            }
-          });
-          return new Response(stream, { headers: { ...corsHeaders, "Content-Type": "text/event-stream" } });
-        }
-
-        // If no API key or we are in cooldown, go straight to storyboard
-        if (!REPLICATE_API_KEY || (replicateCooldownUntil && Date.now() < replicateCooldownUntil)) {
-          const encoder = new TextEncoder();
-          const stream = new ReadableStream({
-            async start(controller) {
-              await generateStoryboard(controller, encoder, true);
-              controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-            }
-          });
-          return new Response(stream, { headers: { ...corsHeaders, "Content-Type": "text/event-stream" } });
-        }
-
-        console.log("Iniciando generación de vídeo con Replicate...");
-        
-        // Multiple model fallback options - order by user preference
-        const allModels = [
-          { name: "minimax/video-01", path: "minimax/video-01", input: { prompt: cleanPrompt, aspect_ratio }, id: "minimax" },
-          { name: "lucataco/animate-diff", path: "lucataco/animate-diff", input: { prompt: cleanPrompt, width: aspect_ratio === "16:9" ? 512 : 320, height: aspect_ratio === "16:9" ? 320 : 512 }, id: "animate-diff" }
-        ];
-        
-        // Reorder based on user preference
-        const videoModels = preferredModel === "minimax" 
-          ? allModels 
-          : [allModels[1], allModels[0]];
+        const cleanPrompt = (textContent || "").trim();
 
         const encoder = new TextEncoder();
         const stream = new ReadableStream({
@@ -405,207 +265,123 @@ Remember: Your purpose is to assist and provide value to the user in a professio
             const sendText = (content: string) => {
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`));
             };
-            const sendProgress = (p: number) => {
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { videoProgress: Math.max(1, Math.min(99, Math.floor(p))) } }] })}\n\n`));
-            };
-            const sendVideo = (url: string) => {
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { videos: [url] } }] })}\n\n`));
-            };
             const sendImages = (urls: string[]) => {
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { images: urls } }] })}\n\n`));
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { images: urls.map(url => ({ image_url: { url } })) } }] })}\n\n`));
             };
 
-            sendText("Iniciando generación de vídeo con Replicate...");
-
-            let predictionId: string | null = null;
-            let usedModel: string | null = null;
-
-            for (const model of videoModels) {
-              try {
-                sendText(`\n\nProbando modelo: ${model.name}...`);
-
-                const createResp = await fetch(`https://api.replicate.com/v1/models/${model.path}/predictions`, {
-                  method: "POST",
-                  headers: {
-                    "Authorization": `Bearer ${REPLICATE_API_KEY}`,
-                    "Content-Type": "application/json",
-                  },
-                  body: JSON.stringify({ input: { ...model.input, image: keyframe_image || undefined } }),
-                });
-
-                if (!createResp.ok) {
-                  const errorText = await createResp.text();
-                  console.error(`Model ${model.name} failed:`, createResp.status, errorText);
-
-                  // On credit, permission or rate limit issues, trigger cooldown and fallback to storyboard
-                  if ([402, 401, 403, 422, 429].includes(createResp.status)) {
-                    replicateCooldownUntil = Date.now() + REPLICATE_COOLDOWN_MS;
-                    sendText("\n\n⚠️ Modelo no disponible o sin crédito. Activando modo alternativo (storyboard) por 10 minutos.");
-                    await generateStoryboard(controller, encoder, true);
-                    controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-                    return;
-                  }
-
-                  // Try next model for other errors
-                  sendText(`\n\n⚠️ Modelo no disponible, probando alternativa...`);
-                  continue;
-                }
-
-                const prediction = await createResp.json();
-                predictionId = prediction.id;
-                usedModel = model.name;
-                if (predictionId) {
-                  sendText(`\n\n✅ Modelo ${model.name} iniciado correctamente (ID: ${predictionId.slice(0, 8)}...)`);
-                }
-                break;
-              } catch (err) {
-                console.error(`Error with model ${model.name}:`, err);
-                // Network or unknown error: try the next model
-                continue;
-              }
-            }
-
-            if (!predictionId || !usedModel) {
-              replicateCooldownUntil = Date.now() + REPLICATE_COOLDOWN_MS;
-              sendText("\n\n❌ No hay modelos disponibles. Generaré un storyboard alternativo y evitaré nuevos intentos durante 10 minutos.");
-              await generateStoryboard(controller, encoder, true);
-              controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-              return;
-            }
-
-            // Poll for completion
-            let attempts = 0;
-            const maxAttempts = 120; // 6 minutes max
-            
             try {
-              while (attempts < maxAttempts) {
-                await new Promise(r => setTimeout(r, 3000));
-                attempts++;
+              sendText("\n\nGenerando imagen...");
 
-                const statusResp = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
-                  headers: { "Authorization": `Bearer ${REPLICATE_API_KEY}` },
-                });
+              const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${LOVABLE_API_KEY}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  model: "google/gemini-2.5-flash-image-preview",
+                  messages: [
+                    { role: "user", content: cleanPrompt }
+                  ],
+                  modalities: ["image", "text"]
+                })
+              });
 
-                if (!statusResp.ok) {
-                  console.error("Status check error:", statusResp.status);
-                  continue;
-                }
-
-                const status = await statusResp.json();
-                console.log("Status:", status.status);
-
-                if (status.status === "processing" || status.status === "starting") {
-                  const progress = Math.min(95, 10 + (attempts * 2));
-                  sendProgress(progress);
-                }
-
-                if (status.status === "succeeded") {
-                  sendProgress(99);
-                  const videoUrl = status.output;
-                  if (videoUrl) {
-                    sendVideo(videoUrl);
-                    sendText(`\n\n✅ Vídeo generado exitosamente con ${usedModel}.`);
-                  } else {
-                    sendText("\n\n⚠️ Generación completada pero no se recibió URL del vídeo.");
-                  }
-                  controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-                  return;
-                }
-
-                if (status.status === "failed" || status.status === "canceled") {
-                  sendText(`\n\n❌ Error: ${status.error || "Generación fallida"}`);
-                  // Fallback to storyboard on failure
-                  await generateStoryboard(controller, encoder, false);
-                  controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-                  return;
-                }
+              if (!aiResp.ok) {
+                const errorText = await aiResp.text();
+                console.error("AI gateway image error:", aiResp.status, errorText);
+                sendText("\n\n❌ No fue posible generar la imagen. Intenta más tarde.");
+                controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+                controller.close();
+                return;
               }
 
-              sendText("\n\n⏱️ Tiempo de espera agotado. Generando storyboard como alternativa...");
-              await generateStoryboard(controller, encoder, false);
+              const data = await aiResp.json();
+              const images = data?.choices?.[0]?.message?.images?.map((i: any) => i?.image_url?.url).filter(Boolean) || [];
+              
+              if (images.length > 0) {
+                sendImages(images);
+                sendText("\n\n✅ Imagen generada exitosamente.");
+              } else {
+                sendText("\n\n⚠️ La respuesta no incluyó imágenes. Intenta más tarde.");
+              }
+              
               controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+              controller.close();
             } catch (err) {
-              console.error("Replicate polling error:", err);
-              sendText(`\n\nError al generar vídeo: ${err instanceof Error ? err.message : String(err)}`);
-              await generateStoryboard(controller, encoder, false);
+              console.error("Image generation error:", err);
+              sendText(`\n\nError al generar imagen: ${err instanceof Error ? err.message : String(err)}`);
               controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+              controller.close();
             }
           }
         });
 
-        return new Response(stream, {
-          headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
-        });
+        return new Response(stream, { headers: { ...corsHeaders, "Content-Type": "text/event-stream" } });
       } catch (error) {
-        console.error("Video generation error:", error);
+        console.error("Image generation error:", error);
         return new Response(
-          JSON.stringify({ error: error instanceof Error ? error.message : "Error generating video" }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          JSON.stringify({ error: error instanceof Error ? error.message : "Failed to generate image" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
         );
       }
     }
 
-    // Prepare the API call based on whether it's image generation or regular chat
-    const apiBody: any = {
-      messages: [
-        {
-          role: "system",
-          content: systemPrompt
-        },
-        ...messages,
-      ],
-      stream: true,
-    };
+    // Regular chat request (text or video analysis)
+    const apiUrl = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
-    // Use appropriate model based on content type
-    if (isImageGenerationRequest) {
-      apiBody.model = "google/gemini-2.5-flash-image-preview";
-      apiBody.modalities = ["image", "text"];
-    } else if (hasVideoForAnalysis || hasImageContent) {
-      // Use Gemini Pro for video/image analysis (better multimodal capabilities)
-      apiBody.model = "google/gemini-2.5-pro";
-    } else {
-      apiBody.model = "google/gemini-2.5-flash";
+    // Determine model based on content
+    let model = "google/gemini-2.5-flash";
+    if (hasVideoForAnalysis) {
+      // Use Gemini Pro for video analysis as it has better multimodal capabilities
+      model = "google/gemini-2.5-pro";
     }
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const requestBody = {
+      model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...messages
+      ],
+      stream: true,
+      modalities: hasImageContent || hasVideoForAnalysis ? ["text", "image", "video"] : ["text"]
+    };
+
+    const response = await fetch(apiUrl, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(apiBody),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limits exceeded, please try again later." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Payment required, please add funds to your Lovable AI workspace." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const t = await response.text();
-      console.error("AI gateway error:", response.status, t);
-      return new Response(JSON.stringify({ error: "AI gateway error" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      const errorText = await response.text();
+      console.error("Lovable AI API error:", response.status, errorText);
+      throw new Error(`Lovable AI API error: ${response.status} - ${errorText}`);
+    }
+
+    if (!response.body) {
+      throw new Error("No response body from Lovable AI");
     }
 
     return new Response(response.body, {
-      headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
     });
-  } catch (e) {
-    console.error("chat error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  } catch (error) {
+    console.error("roast-chat error:", error);
+    return new Response(
+      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error occurred" }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
   }
 });

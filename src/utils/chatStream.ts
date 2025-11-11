@@ -13,8 +13,6 @@ export type Message = {
 export async function streamChat({
   messages,
   mode = "roast",
-  videoMode = "video_first",
-  preferredModel = "minimax",
   onDelta,
   onDone,
   onError,
@@ -22,8 +20,6 @@ export async function streamChat({
 }: {
   messages: Message[];
   mode?: "roast" | "formal" | "developer";
-  videoMode?: "video_first" | "storyboard_only";
-  preferredModel?: "minimax" | "animate-diff";
   onDelta: (deltaText: string) => void;
   onDone: () => void;
   onError: (error: string) => void;
@@ -74,7 +70,7 @@ export async function streamChat({
         "Content-Type": "application/json",
         Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
       },
-      body: JSON.stringify({ messages: transformedMessages, mode, videoMode, preferredModel }),
+      body: JSON.stringify({ messages: transformedMessages, mode }),
       signal,
     });
 
@@ -124,19 +120,7 @@ export async function streamChat({
           const content = parsed.choices?.[0]?.delta?.content as string | undefined;
           if (content) onDelta(content);
           
-          // Handle cooldown notification
-          const cooldownUntil = parsed.choices?.[0]?.delta?.cooldownUntil;
-          if (cooldownUntil !== undefined) {
-            onDelta(JSON.stringify({ cooldownUntil }));
-          }
-          
-          // Handle video progress updates
-          const videoProgress = parsed.choices?.[0]?.delta?.videoProgress;
-          if (videoProgress !== undefined) {
-            onDelta(JSON.stringify({ videoProgress }));
-          }
-          
-          // Handle image and video generation responses - check both delta and message
+          // Handle image generation responses - check both delta and message
           const deltaImages = parsed.choices?.[0]?.delta?.images;
           const messageImages = parsed.choices?.[0]?.message?.images;
           const images = deltaImages || messageImages;
@@ -145,27 +129,6 @@ export async function streamChat({
             const imageUrls = images.map((img: any) => img.image_url?.url || img.url).filter(Boolean);
             if (imageUrls.length > 0) {
               onDelta(JSON.stringify({ images: imageUrls }));
-            }
-          }
-
-          const deltaVideos = parsed.choices?.[0]?.delta?.videos;
-          const messageVideos = parsed.choices?.[0]?.message?.videos;
-          const videos = deltaVideos || messageVideos;
-
-          if (videos) {
-            // Handle both array and direct string/object
-            let videoUrls: string[] = [];
-            if (Array.isArray(videos)) {
-              videoUrls = videos.map((v: any) => {
-                if (typeof v === 'string') return v;
-                return v.video_url?.url || v.url;
-              }).filter(Boolean);
-            } else if (typeof videos === 'string') {
-              videoUrls = [videos];
-            }
-            
-            if (videoUrls.length > 0) {
-              onDelta(JSON.stringify({ videos: videoUrls }));
             }
           }
         } catch {

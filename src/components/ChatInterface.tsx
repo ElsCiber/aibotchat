@@ -5,20 +5,12 @@ import { useToast } from "@/hooks/use-toast";
 import { streamChat, Message } from "@/utils/chatStream";
 import ChatMessage from "./ChatMessage";
 import { messageSchema, conversationTitleSchema } from "@/utils/validation";
-import { Send, Globe, Image as ImageIcon, X, Menu, LogOut, Paperclip, Square, Video } from "lucide-react";
+import { Send, Globe, Image as ImageIcon, X, Menu, LogOut, Paperclip, Square } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { SettingsDialog } from "@/components/SettingsDialog";
 import { ExportButton } from "@/components/ExportButton";
 import { PdfPreview } from "@/components/PdfPreview";
-import { VideoGenerationProgress } from "@/components/VideoGenerationProgress";
-import { VideoOrientationSelector } from "@/components/VideoOrientationSelector";
-import { VideoGenerationPanel } from "@/components/VideoGenerationPanel";
-import { VideoPreview } from "@/components/VideoPreview";
-import { VideoGenerationSettings } from "@/components/VideoGenerationSettings";
-import { CooldownBanner } from "@/components/CooldownBanner";
-import { useVideoGeneration } from "@/contexts/VideoGenerationContext";
-
 import { ModeSelector } from "@/components/ModeSelector";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { supabase } from "@/integrations/supabase/client";
@@ -54,10 +46,6 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
   const [uploadedFiles, setUploadedFiles] = useState<Array<{name: string, content: string, type: string}>>([]);
   const [mode, setMode] = useState<"formal" | "developer" | null>(null);
   const [isLoadingMode, setIsLoadingMode] = useState(true);
-  const [videoProgress, setVideoProgress] = useState<number>(0);
-  const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
-  const [videoOrientation, setVideoOrientation] = useState<"horizontal" | "vertical">("horizontal");
-  const [showVideoPanel, setShowVideoPanel] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -93,7 +81,6 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
   const { language, setLanguage, t } = useLanguage();
   const { toggleSidebar } = useSidebar();
   const navigate = useNavigate();
-  const { mode: videoMode, selectedModel, setCooldownUntil } = useVideoGeneration();
   
   // Refs for stable callbacks
   const messagesRef = useRef<Message[]>([]);
@@ -258,24 +245,6 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
     const inputText = inputRef.current?.value.trim() ?? "";
     if ((!inputText && uploadedImages.length === 0 && uploadedFiles.length === 0) || isLoading) return;
 
-    // Check if this is a video generation request
-    const isVideoRequest = inputText && (
-      (inputText.toLowerCase().includes("genera") ||
-       inputText.toLowerCase().includes("crea") ||
-       inputText.toLowerCase().includes("generate") ||
-       inputText.toLowerCase().includes("create")) &&
-      (inputText.toLowerCase().includes("video") ||
-       inputText.toLowerCase().includes("vídeo") ||
-       inputText.toLowerCase().includes("animación") ||
-       inputText.toLowerCase().includes("animation"))
-    );
-
-    // Add ratio metadata to message if it's a video request
-    const ratio = videoOrientation === "horizontal" ? "1280:720" : "720:1280";
-    const messageTextWithMetadata = isVideoRequest 
-      ? `${inputText} [ratio:${ratio}]`
-      : inputText;
-
     // Create conversation if none exists
     let activeConversationId = conversationId;
     if (!activeConversationId) {
@@ -438,42 +407,16 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
       try {
         const parsed = JSON.parse(chunk);
         
-        // Handle cooldown notification
-        if (parsed.cooldownUntil !== undefined) {
-          setCooldownUntil(parsed.cooldownUntil);
-          return;
-        }
-        
         if (parsed.images) {
           assistantImages = parsed.images;
-          setIsGeneratingVideo(false);
           // Force immediate flush when images are received
           flushAssistant();
           return;
         }
-        if (parsed.videos) {
-          assistantVideos = Array.isArray(parsed.videos) ? parsed.videos : [parsed.videos];
-          setIsGeneratingVideo(false);
-          setVideoProgress(100);
-          // Force immediate flush when videos are received
-          flushAssistant();
-          return;
-        }
-        if (parsed.videoProgress !== undefined) {
-          setVideoProgress(parsed.videoProgress);
-          setIsGeneratingVideo(true);
-          return;
-        }
       } catch {
         // Not JSON, regular text content - sanitize placeholder tokens
-        const sanitized = chunk.replace(/<\s*image\s*\/?\s*>|\[image\]|<\/?video[^>]*>|\[video\]/gi, "");
+        const sanitized = chunk.replace(/<\s*image\s*\/?\s*>|\[image\]/gi, "");
         assistantContent += sanitized;
-        
-        // Check if starting video generation
-        if (sanitized.toLowerCase().includes("generando") && sanitized.toLowerCase().includes("vídeo")) {
-          setIsGeneratingVideo(true);
-          setVideoProgress(5);
-        }
       }
       if (!scheduled) {
         scheduled = true;
@@ -484,13 +427,9 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
     await streamChat({
       messages: [...messagesRef.current, userMessage],
       mode,
-      videoMode,
-      preferredModel: selectedModel,
       onDelta: (chunk) => upsertAssistant(chunk),
       onDone: async () => {
         setIsLoading(false);
-        setIsGeneratingVideo(false);
-        setVideoProgress(0);
         abortControllerRef.current = null;
         // Save assistant message
           const assistantMessage: Message = {
@@ -649,15 +588,6 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
     }
   }, [handleSend]);
 
-  const handleVideoGenerate = (prompt: string, orientation: "horizontal" | "vertical") => {
-    setVideoOrientation(orientation);
-    if (inputRef.current) {
-      inputRef.current.value = `genera un video de ${prompt}`;
-    }
-    setShowVideoPanel(false);
-    handleSend();
-  };
-
   const handleStop = () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -755,7 +685,6 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
             </div>
           ) : (
             <>
-              <CooldownBanner />
               {deferredMessages.map((message, index) => (
                 <ChatMessage 
                   key={index} 
@@ -765,17 +694,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
                   isStreaming={isLoading && index === messages.length - 1 && message.role === "assistant"}
                 />
               ))}
-              {isGeneratingVideo && (
-                <div className="flex gap-3 items-start mb-6">
-                  <div className="flex-1">
-                    <VideoPreview 
-                      progress={videoProgress} 
-                      estimatedTime={videoProgress < 30 ? "~5-6 min" : videoProgress < 60 ? "~3-4 min" : videoProgress < 90 ? "~1-2 min" : "~30 seg"}
-                    />
-                  </div>
-                </div>
-              )}
-              {isLoading && !isGeneratingVideo && (
+              {isLoading && (
                 <div className="flex gap-3 items-start mb-6">
                   <div className="bg-card border border-border rounded-2xl px-6 py-4 shadow-lg">
                     <div className="flex gap-1.5">
@@ -795,40 +714,10 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
       {/* Input */}
       <div className="border-t border-border bg-card/50 backdrop-blur-sm">
         <div className="container max-w-4xl mx-auto px-4 py-6">
-          {/* Video Generation Panel */}
-          {showVideoPanel && (
-            <VideoGenerationPanel
-              onGenerate={handleVideoGenerate}
-              onClose={() => setShowVideoPanel(false)}
-              isLoading={isLoading}
-            />
-          )}
-          
-          {/* Check if this is a video generation request for showing orientation selector */}
           {(() => {
-            const inputText = inputRef.current?.value.trim() ?? "";
-            const isVideoRequest = inputText && (
-              (inputText.toLowerCase().includes("genera") ||
-               inputText.toLowerCase().includes("crea") ||
-               inputText.toLowerCase().includes("generate") ||
-               inputText.toLowerCase().includes("create")) &&
-              (inputText.toLowerCase().includes("video") ||
-               inputText.toLowerCase().includes("vídeo") ||
-               inputText.toLowerCase().includes("animación") ||
-               inputText.toLowerCase().includes("animation"))
-            );
-            
-            if ((uploadedImages.length > 0 || uploadedVideos.length > 0 || uploadedFiles.length > 0) || isVideoRequest) {
+            if ((uploadedImages.length > 0 || uploadedVideos.length > 0 || uploadedFiles.length > 0)) {
               return (
                 <div className="mb-3 space-y-3">
-                  {/* Video orientation selector - show when there are images or when typing video generation request */}
-                  {(isVideoRequest || uploadedImages.length > 0) && (
-                    <VideoOrientationSelector
-                      orientation={videoOrientation}
-                      onChange={setVideoOrientation}
-                    />
-                  )}
-                  
                   {/* Uploaded files preview */}
                   {(uploadedImages.length > 0 || uploadedVideos.length > 0 || uploadedFiles.length > 0) && (
                     <div className="flex gap-2 flex-wrap">
@@ -896,17 +785,6 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
             >
               <Paperclip className="h-5 w-5" />
             </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setShowVideoPanel(!showVideoPanel)}
-              disabled={isLoading}
-              title={language === "es" ? "Generar vídeo con IA" : "Generate AI video"}
-              className={showVideoPanel ? "bg-primary/10 text-primary border-primary/20" : ""}
-            >
-              <Video className="h-5 w-5" />
-            </Button>
-            <VideoGenerationSettings />
             <Input
               ref={inputRef}
               defaultValue=""
