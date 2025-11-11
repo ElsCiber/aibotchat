@@ -15,6 +15,9 @@ import { VideoGenerationProgress } from "@/components/VideoGenerationProgress";
 import { VideoOrientationSelector } from "@/components/VideoOrientationSelector";
 import { VideoGenerationPanel } from "@/components/VideoGenerationPanel";
 import { VideoPreview } from "@/components/VideoPreview";
+import { VideoGenerationSettings } from "@/components/VideoGenerationSettings";
+import { CooldownBanner } from "@/components/CooldownBanner";
+import { useVideoGeneration } from "@/contexts/VideoGenerationContext";
 
 import { ModeSelector } from "@/components/ModeSelector";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
@@ -90,6 +93,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
   const { language, setLanguage, t } = useLanguage();
   const { toggleSidebar } = useSidebar();
   const navigate = useNavigate();
+  const { mode: videoMode, selectedModel, setCooldownUntil } = useVideoGeneration();
   
   // Refs for stable callbacks
   const messagesRef = useRef<Message[]>([]);
@@ -433,6 +437,13 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
       // Check if chunk contains media data
       try {
         const parsed = JSON.parse(chunk);
+        
+        // Handle cooldown notification
+        if (parsed.cooldownUntil !== undefined) {
+          setCooldownUntil(parsed.cooldownUntil);
+          return;
+        }
+        
         if (parsed.images) {
           assistantImages = parsed.images;
           setIsGeneratingVideo(false);
@@ -473,6 +484,8 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
     await streamChat({
       messages: [...messagesRef.current, userMessage],
       mode,
+      videoMode,
+      preferredModel: selectedModel,
       onDelta: (chunk) => upsertAssistant(chunk),
       onDone: async () => {
         setIsLoading(false);
@@ -742,6 +755,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
             </div>
           ) : (
             <>
+              <CooldownBanner />
               {deferredMessages.map((message, index) => (
                 <ChatMessage 
                   key={index} 
@@ -892,6 +906,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
             >
               <Video className="h-5 w-5" />
             </Button>
+            <VideoGenerationSettings />
             <Input
               ref={inputRef}
               defaultValue=""

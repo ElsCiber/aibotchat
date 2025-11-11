@@ -13,6 +13,8 @@ export type Message = {
 export async function streamChat({
   messages,
   mode = "roast",
+  videoMode = "video_first",
+  preferredModel = "minimax",
   onDelta,
   onDone,
   onError,
@@ -20,6 +22,8 @@ export async function streamChat({
 }: {
   messages: Message[];
   mode?: "roast" | "formal" | "developer";
+  videoMode?: "video_first" | "storyboard_only";
+  preferredModel?: "minimax" | "animate-diff";
   onDelta: (deltaText: string) => void;
   onDone: () => void;
   onError: (error: string) => void;
@@ -70,7 +74,7 @@ export async function streamChat({
         "Content-Type": "application/json",
         Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
       },
-      body: JSON.stringify({ messages: transformedMessages, mode }),
+      body: JSON.stringify({ messages: transformedMessages, mode, videoMode, preferredModel }),
       signal,
     });
 
@@ -119,6 +123,12 @@ export async function streamChat({
           const parsed = JSON.parse(jsonStr);
           const content = parsed.choices?.[0]?.delta?.content as string | undefined;
           if (content) onDelta(content);
+          
+          // Handle cooldown notification
+          const cooldownUntil = parsed.choices?.[0]?.delta?.cooldownUntil;
+          if (cooldownUntil !== undefined) {
+            onDelta(JSON.stringify({ cooldownUntil }));
+          }
           
           // Handle video progress updates
           const videoProgress = parsed.choices?.[0]?.delta?.videoProgress;
