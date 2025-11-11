@@ -335,10 +335,14 @@ Remember: Your purpose is to assist and provide value to the user in a professio
               const runwayData = await runwayResponse.json();
               
               // Send completion with video
+              const completionMessage = runwayData.cached 
+                ? "\n\n✨ Vídeo recuperado de caché (sin consumir créditos)."
+                : "\n\nVídeo generado exitosamente.";
+              
               const videoResponse = JSON.stringify({
                 choices: [{
                   delta: {
-                    content: "\n\nVídeo generado exitosamente.",
+                    content: completionMessage,
                     videos: [runwayData.video_url]
                   }
                 }]

@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -25,6 +26,43 @@ serve(async (req) => {
 
     console.log("Starting video generation with prompt:", prompt);
 
+    // Initialize Supabase client for caching
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Check cache for existing video
+    const cacheQuery = supabase
+      .from("video_cache")
+      .select("*")
+      .eq("prompt", prompt);
+    
+    if (keyframe_image) {
+      cacheQuery.eq("keyframe_image", keyframe_image);
+    } else {
+      cacheQuery.is("keyframe_image", null);
+    }
+
+    const { data: cachedVideo } = await cacheQuery.single();
+
+    if (cachedVideo) {
+      console.log("Found cached video:", cachedVideo.id);
+      return new Response(
+        JSON.stringify({ 
+          video_url: cachedVideo.video_url,
+          generation_id: cachedVideo.generation_id,
+          prompt: prompt,
+          cached: true
+        }),
+        { 
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200 
+        }
+      );
+    }
+
+    console.log("No cache found, generating new video...");
+
     // Create generation with Runway ML API
     const createBody: any = {
       promptText: prompt,
@@ -34,8 +72,8 @@ serve(async (req) => {
       seed: Math.floor(Math.random() * 1000000),
     };
 
-    // Add keyframe if image is provided
-    if (keyframe_image) {
+    // Add keyframe if image is provided (only if it's a valid non-empty string)
+    if (keyframe_image && typeof keyframe_image === "string" && keyframe_image.trim() !== "") {
       createBody.promptImage = keyframe_image;
     }
 
@@ -113,11 +151,30 @@ serve(async (req) => {
 
     console.log("Video generation completed:", videoUrl);
 
+    // Cache the generated video
+    const { error: cacheError } = await supabase
+      .from("video_cache")
+      .insert({
+        prompt: prompt,
+        keyframe_image: keyframe_image || null,
+        video_url: videoUrl,
+        generation_id: finalGeneration.id,
+        model: "gen3a_turbo"
+      });
+
+    if (cacheError) {
+      console.error("Failed to cache video:", cacheError);
+      // Don't fail the request if caching fails
+    } else {
+      console.log("Video cached successfully");
+    }
+
     return new Response(
       JSON.stringify({ 
         video_url: videoUrl,
         generation_id: finalGeneration.id,
-        prompt: prompt
+        prompt: prompt,
+        cached: false
       }),
       { 
         headers: { ...corsHeaders, "Content-Type": "application/json" },

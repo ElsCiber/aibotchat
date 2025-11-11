@@ -139,6 +139,36 @@ export type Database = {
         }
         Relationships: []
       }
+      video_cache: {
+        Row: {
+          created_at: string
+          generation_id: string
+          id: string
+          keyframe_image: string | null
+          model: string | null
+          prompt: string
+          video_url: string
+        }
+        Insert: {
+          created_at?: string
+          generation_id: string
+          id?: string
+          keyframe_image?: string | null
+          model?: string | null
+          prompt: string
+          video_url: string
+        }
+        Update: {
+          created_at?: string
+          generation_id?: string
+          id?: string
+          keyframe_image?: string | null
+          model?: string | null
+          prompt?: string
+          video_url?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
