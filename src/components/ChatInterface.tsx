@@ -267,7 +267,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
     );
 
     // Add ratio metadata to message if it's a video request
-    const ratio = videoOrientation === "horizontal" ? "1280:768" : "768:1280";
+    const ratio = videoOrientation === "horizontal" ? "1280:720" : "720:1280";
     const messageTextWithMetadata = isVideoRequest 
       ? `${inputText} [ratio:${ratio}]`
       : inputText;

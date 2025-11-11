@@ -271,109 +271,160 @@ GUIDELINES:
 Remember: Your purpose is to assist and provide value to the user in a professional and helpful manner.`;
     }
 
-    // Handle video generation separately (call Runway ML)
+    // Handle video generation separately (call Runway ML with streaming)
     if (isVideoGenerationRequest) {
       try {
-        console.log("Video generation requested, calling Runway ML API...");
+        const RUNWAY_API_KEY = Deno.env.get("RUNWAY_API_KEY");
+        if (!RUNWAY_API_KEY) throw new Error("RUNWAY_API_KEY is not configured");
+
+        console.log("Video generation requested, calling Runway ML API with streaming...");
         
         // Extract keyframe image and ratio if present in message
-        let keyframe_image = null;
-        let ratio = "1280:768"; // Default horizontal
+        let keyframe_image: string | null = null;
+        let ratioRaw = "1280:720"; // Default horizontal
         
         if (hasImageContent) {
           const imageContent = lastMessage.content.find((c: any) => c.type === "image_url");
-          if (imageContent?.image_url?.url) {
-            keyframe_image = imageContent.image_url.url;
-          }
-          
-          // Extract ratio from text content if specified
-          const ratioMatch = textContent.match(/\[ratio:(1280:768|768:1280)\]/);
-          if (ratioMatch) {
-            ratio = ratioMatch[1];
-          }
+          if (imageContent?.image_url?.url) keyframe_image = imageContent.image_url.url;
         }
+        
+        // Extract ratio from text if provided
+        const ratioMatch = (textContent || "").match(/\[ratio:(1280:720|720:1280|1920:1080|1080:1920|16:9|9:16)\]/);
+        if (ratioMatch) ratioRaw = ratioMatch[1];
+        
+        // Normalize ratio to allowed pixel strings
+        const normalizeRatio = (r: string) => {
+          if (r === "16:9" || r === "1920:1080") return "1920:1080";
+          if (r === "9:16" || r === "1080:1920") return "1080:1920";
+          if (r === "1280:720" || r === "720:1280") return r; // already allowed
+          // Fallback to 1280x720
+          return "1280:720";
+        };
+        const ratio = normalizeRatio(ratioRaw);
 
-        // Send initial progress message
+        // Model candidates and endpoints
+        const textModels = ["veo3.1_fast", "veo3", "gen3a_turbo"];
+        const imageModels = ["gen4.5", "gen3a_turbo"];
+        const createEndpoint = keyframe_image ? "https://api.dev.runwayml.com/v1/image_to_video" : "https://api.dev.runwayml.com/v1/text_to_video";
+        const statusEndpoint = (id: string) => `https://api.dev.runwayml.com/v1/tasks/${id}`;
+
+        // Helper for model-specific duration
+        const pickDuration = (model: string) => {
+          if (model.startsWith("veo3")) return 6; // allowed: 4|6|8 -> pick 6
+          if (model === "gen4.5") return 6; // common allowance
+          return 5; // gen3a_turbo default
+        };
+
         const encoder = new TextEncoder();
         const stream = new ReadableStream({
           async start(controller) {
-            // Send initial message
-            const initialMsg = JSON.stringify({
-              choices: [{
-                delta: {
-                  role: "assistant",
-                  content: "Iniciando generación de vídeo con Runway ML..."
-                }
-              }]
-            });
-            controller.enqueue(encoder.encode(`data: ${initialMsg}\n\n`));
+            const sendText = (content: string) => {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`));
+            };
+            const sendProgress = (p: number) => {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { videoProgress: Math.max(1, Math.min(99, Math.floor(p))) } }] })}\n\n`));
+            };
+            const sendPreview = (url: string) => {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { images: [url] } }] })}\n\n`));
+            };
+            const sendVideo = (url: string) => {
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { videos: [url] } }] })}\n\n`));
+            };
 
-            // Simulate progress updates with incremental increases
-            let currentProgress = 10;
-            const progressInterval = setInterval(() => {
-              currentProgress = Math.min(95, currentProgress + Math.floor(Math.random() * 5) + 2);
-              const progressMsg = JSON.stringify({
-                choices: [{
-                  delta: {
-                    videoProgress: currentProgress
-                  }
-                }]
-              });
-              controller.enqueue(encoder.encode(`data: ${progressMsg}\n\n`));
-            }, 3000);
+            // Initial message
+            sendText("Iniciando generación de vídeo con Runway ML...");
 
-            try {
-              const runwayResponse = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/runway-generate`, {
+            const models = keyframe_image ? imageModels : textModels;
+            let createdId: string | null = null;
+            let usedModel: string | null = null;
+            let lastPreview: string | undefined;
+
+            // Try models sequentially until one works
+            for (const model of models) {
+              const body: any = keyframe_image
+                ? { promptText: textContent.replace(/\[ratio:[^\]]+\]/, '').trim(), promptImage: keyframe_image, model, duration: pickDuration(model), ratio }
+                : { promptText: textContent.replace(/\[ratio:[^\]]+\]/, '').trim(), model, duration: pickDuration(model), ratio };
+
+              const createResp = await fetch(createEndpoint, {
                 method: "POST",
                 headers: {
+                  "Authorization": `Bearer ${RUNWAY_API_KEY}`,
                   "Content-Type": "application/json",
-                  "Authorization": req.headers.get("Authorization") || "",
+                  "X-Runway-Version": "2024-11-06",
                 },
-                body: JSON.stringify({ 
-                  prompt: textContent.replace(/\[ratio:(1280:768|768:1280)\]/, '').trim(),
-                  keyframe_image: keyframe_image && typeof keyframe_image === "string" && keyframe_image.trim() !== "" ? keyframe_image : undefined,
-                  ratio: ratio
-                }),
+                body: JSON.stringify(body),
               });
 
-              clearInterval(progressInterval);
-
-              if (!runwayResponse.ok) {
-                const errorData = await runwayResponse.json();
-                throw new Error(errorData.error || "Failed to generate video");
+              if (!createResp.ok) {
+                const t = await createResp.text();
+                let retry = false;
+                if (createResp.status === 401) {
+                  sendText("\n\nAutenticación fallida. Revisa RUNWAY_API_KEY.");
+                  return controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+                }
+                if (createResp.status === 403 || createResp.status === 400) {
+                  try {
+                    const j = JSON.parse(t);
+                    const msg = j.error || j.message || t;
+                    console.error("Create error for model", model, msg);
+                    retry = true; // try next model
+                  } catch {
+                    retry = true;
+                  }
+                }
+                if (retry) continue; else throw new Error(`Runway create error: ${createResp.status}`);
               }
 
-              const runwayData = await runwayResponse.json();
-              
-              // Send completion with video
-              const completionMessage = runwayData.cached 
-                ? "\n\n✨ Vídeo recuperado de caché (sin consumir créditos)."
-                : "\n\nVídeo generado exitosamente.";
-              
-              const videoResponse = JSON.stringify({
-                choices: [{
-                  delta: {
-                    content: completionMessage,
-                    videos: [runwayData.video_url]
-                  }
-                }]
-              });
-              controller.enqueue(encoder.encode(`data: ${videoResponse}\n\n`));
-              controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-            } catch (error) {
-              clearInterval(progressInterval);
-              const errorMsg = JSON.stringify({
-                choices: [{
-                  delta: {
-                    content: `\n\nError al generar vídeo: ${error instanceof Error ? error.message : "Unknown error"}`
-                  }
-                }]
-              });
-              controller.enqueue(encoder.encode(`data: ${errorMsg}\n\n`));
-              controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+              const created = await createResp.json();
+              createdId = created.id;
+              usedModel = model;
+              break; // success
             }
-            
-            controller.close();
+
+            if (!createdId || !usedModel) {
+              sendText("\n\nNo hay modelos disponibles para tu clave de API o plan.");
+              controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+              return;
+            }
+
+            // Polling loop
+            let attempts = 0;
+            const maxAttempts = 120;
+            while (attempts < maxAttempts) {
+              await new Promise(r => setTimeout(r, 3000));
+              attempts++;
+              const statusResp = await fetch(statusEndpoint(createdId), {
+                headers: { "Authorization": `Bearer ${RUNWAY_API_KEY}`, "X-Runway-Version": "2024-11-06" },
+              });
+              if (!statusResp.ok) continue;
+              const data = await statusResp.json();
+
+              if (typeof data.progress === 'number') sendProgress(data.progress);
+
+              if (data.artifacts && data.artifacts.length > 0) {
+                const preview = data.artifacts[0];
+                const url = typeof preview === 'string' ? preview : (preview?.url || preview?.image || preview?.preview || preview);
+                if (url && url !== lastPreview) {
+                  lastPreview = url;
+                  sendPreview(url);
+                }
+              }
+
+              if (data.status === "SUCCEEDED") {
+                const videoUrl = Array.isArray(data.output) ? data.output[0] : data.output?.url || data.output;
+                if (videoUrl) sendVideo(videoUrl);
+                controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+                return;
+              }
+              if (data.status === "FAILED") {
+                sendText(`\n\nError al generar vídeo: ${data.failure || 'Unknown error'}`);
+                controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+                return;
+              }
+            }
+
+            sendText("\n\nLa generación tardó demasiado y fue cancelada.");
+            controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           }
         });
 
@@ -384,10 +435,7 @@ Remember: Your purpose is to assist and provide value to the user in a professio
         console.error("Video generation error:", error);
         return new Response(
           JSON.stringify({ error: error instanceof Error ? error.message : "Error generating video" }),
-          {
-            status: 500,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
     }
