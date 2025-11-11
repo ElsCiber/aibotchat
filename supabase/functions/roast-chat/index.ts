@@ -20,7 +20,20 @@ serve(async (req) => {
       ? lastMessage.content.find((c: any) => c.type === "text")?.text 
       : lastMessage?.content;
     
-    const isImageGenerationRequest = textContent && (
+    // Check for video generation request
+    const isVideoGenerationRequest = textContent && (
+      (textContent.toLowerCase().includes("genera") ||
+       textContent.toLowerCase().includes("crea") ||
+       textContent.toLowerCase().includes("generate") ||
+       textContent.toLowerCase().includes("create")) &&
+      (textContent.toLowerCase().includes("video") ||
+       textContent.toLowerCase().includes("vídeo") ||
+       textContent.toLowerCase().includes("animación") ||
+       textContent.toLowerCase().includes("animation"))
+    );
+
+    // Check for image generation request (excluding video requests)
+    const isImageGenerationRequest = !isVideoGenerationRequest && textContent && (
       (textContent.toLowerCase().includes("genera") ||
        textContent.toLowerCase().includes("crea") ||
        textContent.toLowerCase().includes("dibuja") ||
@@ -30,9 +43,7 @@ serve(async (req) => {
       (textContent.toLowerCase().includes("imagen") ||
        textContent.toLowerCase().includes("image") ||
        textContent.toLowerCase().includes("foto") ||
-       textContent.toLowerCase().includes("picture") ||
-       textContent.toLowerCase().includes("video") ||
-       textContent.toLowerCase().includes("vídeo"))
+       textContent.toLowerCase().includes("picture"))
     );
 
     // Prepare the system prompt based on mode
@@ -254,6 +265,77 @@ GUIDELINES:
 8. When shown an image, analyze it objectively and provide helpful insights
 
 Remember: Your purpose is to assist and provide value to the user in a professional and helpful manner.`;
+    }
+
+    // Handle video generation separately (call Luma)
+    if (isVideoGenerationRequest) {
+      try {
+        console.log("Video generation requested, calling Luma API...");
+        
+        // Extract keyframe image if present in message
+        let keyframe_image = null;
+        if (hasImageContent) {
+          const imageContent = lastMessage.content.find((c: any) => c.type === "image_url");
+          if (imageContent?.image_url?.url) {
+            keyframe_image = imageContent.image_url.url;
+          }
+        }
+
+        const lumaResponse = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/luma-generate`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": req.headers.get("Authorization") || "",
+          },
+          body: JSON.stringify({ 
+            prompt: textContent,
+            keyframe_image
+          }),
+        });
+
+        if (!lumaResponse.ok) {
+          const errorData = await lumaResponse.json();
+          throw new Error(errorData.error || "Failed to generate video");
+        }
+
+        const lumaData = await lumaResponse.json();
+        
+        // Return video as streaming response compatible format
+        const videoResponse = JSON.stringify({
+          choices: [{
+            message: {
+              role: "assistant",
+              content: "He generado el vídeo que pediste.",
+              videos: [{
+                video_url: { url: lumaData.video_url }
+              }]
+            }
+          }]
+        });
+
+        // Convert to SSE format
+        const encoder = new TextEncoder();
+        const stream = new ReadableStream({
+          start(controller) {
+            controller.enqueue(encoder.encode(`data: ${videoResponse}\n\n`));
+            controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+            controller.close();
+          }
+        });
+
+        return new Response(stream, {
+          headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+        });
+      } catch (error) {
+        console.error("Video generation error:", error);
+        return new Response(
+          JSON.stringify({ error: error instanceof Error ? error.message : "Error generating video" }),
+          {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
     }
 
     // Prepare the API call based on whether it's image generation or regular chat

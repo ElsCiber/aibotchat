@@ -2,3 +2,12 @@ project_id = "goozvvebbwfxytvzmetu"
 
 [functions.speech-to-text]
 verify_jwt = false
+
+[functions.text-to-speech]
+verify_jwt = false
+
+[functions.roast-chat]
+verify_jwt = false
+
+[functions.luma-generate]
+verify_jwt = false

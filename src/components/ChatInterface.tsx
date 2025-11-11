@@ -190,6 +190,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
         role: msg.role as "user" | "assistant",
         content: msg.content,
         images: msg.images || undefined,
+        videos: msg.videos || undefined,
       }))
     );
   };
@@ -202,6 +203,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
       role: message.role,
       content: message.content,
       images: message.images || null,
+      videos: message.videos || null,
     });
 
     if (error) {
@@ -297,6 +299,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
         content: userMessage.content,
         role: userMessage.role,
         images: userMessage.images,
+        videos: userMessage.videos,
       });
     } catch (error) {
       toastRef.current({
@@ -316,6 +319,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
       role: userMessage.role,
       content: userMessage.content,
       images: userMessage.images || null,
+      videos: userMessage.videos || null,
     });
 
     if (saveError) {
@@ -436,6 +440,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
               content: assistantMessage.content,
               role: assistantMessage.role,
               images: assistantMessage.images,
+              videos: assistantMessage.videos,
             });
             
             await supabase.from("messages").insert({
@@ -443,6 +448,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
               role: assistantMessage.role,
               content: assistantMessage.content,
               images: assistantMessage.images || null,
+              videos: assistantMessage.videos || null,
             });
           } catch (error) {
             console.error("Error saving assistant message:", error);

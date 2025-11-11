@@ -85,6 +85,7 @@ export type Database = {
           id: string
           images: string[] | null
           role: string
+          videos: string[] | null
         }
         Insert: {
           content: string
@@ -93,6 +94,7 @@ export type Database = {
           id?: string
           images?: string[] | null
           role: string
+          videos?: string[] | null
         }
         Update: {
           content?: string
@@ -101,6 +103,7 @@ export type Database = {
           id?: string
           images?: string[] | null
           role?: string
+          videos?: string[] | null
         }
         Relationships: [
           {
