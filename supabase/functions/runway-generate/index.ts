@@ -70,12 +70,12 @@ serve(async (req) => {
     const seed = Math.floor(Math.random() * 1000000);
 
     if (hasKeyframe) {
-      // Image-to-video: use gen3a_turbo with /v1/image_to_video
-      console.log("Using image-to-video endpoint with gen3a_turbo");
+      // Image-to-video: use gen4_turbo with /v1/image_to_video
+      console.log("Using image-to-video endpoint with gen4_turbo");
       const createBody = {
         promptText: prompt,
         promptImage: keyframe_image,
-        model: "gen3a_turbo",
+        model: "gen4_turbo",
         duration: 5,
         ratio: ratio,
         seed: seed,
@@ -91,11 +91,11 @@ serve(async (req) => {
         body: JSON.stringify(createBody),
       });
     } else {
-      // Text-to-video: use gen3a_turbo with /v1/text_to_video
-      console.log("Using text-to-video endpoint with gen3a_turbo");
+      // Text-to-video: use gen4_turbo with /v1/text_to_video
+      console.log("Using text-to-video endpoint with gen4_turbo");
       const createBody = {
         promptText: prompt,
-        model: "gen3a_turbo",
+        model: "gen4_turbo",
         duration: 5,
         ratio: ratio,
         seed: seed,
@@ -203,7 +203,7 @@ serve(async (req) => {
         keyframe_image: keyframe_image || null,
         video_url: videoUrl,
         generation_id: finalGeneration.id,
-        model: "gen3a_turbo"
+        model: "gen4_turbo"
       });
 
     if (cacheError) {
