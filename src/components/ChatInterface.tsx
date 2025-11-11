@@ -12,6 +12,7 @@ import { SettingsDialog } from "@/components/SettingsDialog";
 import { ExportButton } from "@/components/ExportButton";
 import { PdfPreview } from "@/components/PdfPreview";
 import { VideoGenerationProgress } from "@/components/VideoGenerationProgress";
+import { VideoOrientationSelector } from "@/components/VideoOrientationSelector";
 
 import { ModeSelector } from "@/components/ModeSelector";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
@@ -50,6 +51,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
   const [isLoadingMode, setIsLoadingMode] = useState(true);
   const [videoProgress, setVideoProgress] = useState<number>(0);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
+  const [videoOrientation, setVideoOrientation] = useState<"horizontal" | "vertical">("horizontal");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -248,6 +250,24 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
   const handleSend = useCallback(async () => {
     const inputText = inputRef.current?.value.trim() ?? "";
     if ((!inputText && uploadedImages.length === 0 && uploadedFiles.length === 0) || isLoading) return;
+
+    // Check if this is a video generation request
+    const isVideoRequest = inputText && (
+      (inputText.toLowerCase().includes("genera") ||
+       inputText.toLowerCase().includes("crea") ||
+       inputText.toLowerCase().includes("generate") ||
+       inputText.toLowerCase().includes("create")) &&
+      (inputText.toLowerCase().includes("video") ||
+       inputText.toLowerCase().includes("vídeo") ||
+       inputText.toLowerCase().includes("animación") ||
+       inputText.toLowerCase().includes("animation"))
+    );
+
+    // Add ratio metadata to message if it's a video request
+    const ratio = videoOrientation === "horizontal" ? "1280:768" : "768:1280";
+    const messageTextWithMetadata = isVideoRequest 
+      ? `${inputText} [ratio:${ratio}]`
+      : inputText;
 
     // Create conversation if none exists
     let activeConversationId = conversationId;
@@ -749,49 +769,80 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
       {/* Input */}
       <div className="border-t border-border bg-card/50 backdrop-blur-sm">
         <div className="container max-w-4xl mx-auto px-4 py-6">
-          {(uploadedImages.length > 0 || uploadedVideos.length > 0 || uploadedFiles.length > 0) && (
-            <div className="flex gap-2 mb-3 flex-wrap">
-              {uploadedImages.map((img, idx) => (
-                <div key={`img-${idx}`} className="relative">
-                  <img
-                    src={img}
-                    alt={`Upload ${idx + 1}`}
-                    className="h-20 w-20 object-cover rounded-lg border border-border"
-                  />
-                  <button
-                    onClick={() => removeImage(idx)}
-                    className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 hover:bg-destructive/90"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-              ))}
+          {/* Check if this is a video generation request for showing orientation selector */}
+          {(() => {
+            const inputText = inputRef.current?.value.trim() ?? "";
+            const isVideoRequest = inputText && (
+              (inputText.toLowerCase().includes("genera") ||
+               inputText.toLowerCase().includes("crea") ||
+               inputText.toLowerCase().includes("generate") ||
+               inputText.toLowerCase().includes("create")) &&
+              (inputText.toLowerCase().includes("video") ||
+               inputText.toLowerCase().includes("vídeo") ||
+               inputText.toLowerCase().includes("animación") ||
+               inputText.toLowerCase().includes("animation"))
+            );
+            
+            if ((uploadedImages.length > 0 || uploadedVideos.length > 0 || uploadedFiles.length > 0) || isVideoRequest) {
+              return (
+                <div className="mb-3 space-y-3">
+                  {/* Video orientation selector - show when there are images or when typing video generation request */}
+                  {(isVideoRequest || uploadedImages.length > 0) && (
+                    <VideoOrientationSelector
+                      orientation={videoOrientation}
+                      onChange={setVideoOrientation}
+                    />
+                  )}
+                  
+                  {/* Uploaded files preview */}
+                  {(uploadedImages.length > 0 || uploadedVideos.length > 0 || uploadedFiles.length > 0) && (
+                    <div className="flex gap-2 flex-wrap">
+                      {uploadedImages.map((img, idx) => (
+                        <div key={`img-${idx}`} className="relative">
+                          <img
+                            src={img}
+                            alt={`Upload ${idx + 1}`}
+                            className="h-20 w-20 object-cover rounded-lg border border-border"
+                          />
+                          <button
+                            onClick={() => removeImage(idx)}
+                            className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 hover:bg-destructive/90"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
 
-              {uploadedVideos.map((vid, idx) => (
-                <div key={`vid-${idx}`} className="relative">
-                  <video
-                    src={vid}
-                    className="h-20 w-20 object-cover rounded-lg border border-border"
-                    controls
-                  />
-                  <button
-                    onClick={() => setUploadedVideos((prev) => prev.filter((_, i) => i !== idx))}
-                    className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 hover:bg-destructive/90"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-              ))}
+                      {uploadedVideos.map((vid, idx) => (
+                        <div key={`vid-${idx}`} className="relative">
+                          <video
+                            src={vid}
+                            className="h-20 w-20 object-cover rounded-lg border border-border"
+                            controls
+                          />
+                          <button
+                            onClick={() => setUploadedVideos((prev) => prev.filter((_, i) => i !== idx))}
+                            className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 hover:bg-destructive/90"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
 
-              {uploadedFiles.map((file, idx) => (
-                <PdfPreview
-                  key={`file-${idx}`}
-                  file={file}
-                  onRemove={() => removeFile(idx)}
-                />
-              ))}
-            </div>
-          )}
+                      {uploadedFiles.map((file, idx) => (
+                        <PdfPreview
+                          key={`file-${idx}`}
+                          file={file}
+                          onRemove={() => removeFile(idx)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+            return null;
+          })()}
           <div className="flex gap-3">
             <input
               ref={fileInputRef}

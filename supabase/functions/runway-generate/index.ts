@@ -10,7 +10,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { prompt, keyframe_image } = await req.json();
+    const { prompt, keyframe_image, ratio = "1280:768" } = await req.json();
     const RUNWAY_API_KEY = Deno.env.get("RUNWAY_API_KEY");
     
     if (!RUNWAY_API_KEY) {
@@ -24,7 +24,9 @@ serve(async (req) => {
       throw new Error("Prompt is required");
     }
 
-    console.log("Starting video generation with prompt:", prompt);
+    const hasKeyframe = keyframe_image && typeof keyframe_image === "string" && keyframe_image.trim() !== "";
+    const mode = hasKeyframe ? "image-to-video" : "text-to-video";
+    console.log(`Starting ${mode} generation with prompt:`, prompt, "ratio:", ratio);
 
     // Initialize Supabase client for caching
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -64,34 +66,70 @@ serve(async (req) => {
     console.log("No cache found, generating new video...");
 
     // Create generation with Runway ML API
-    const createBody: any = {
-      promptText: prompt,
-      model: "gen3a_turbo",
-      duration: 5,
-      ratio: "16:9",
-      seed: Math.floor(Math.random() * 1000000),
-    };
+    let createResponse;
+    const seed = Math.floor(Math.random() * 1000000);
 
-    // Add keyframe if image is provided (only if it's a valid non-empty string)
-    if (keyframe_image && typeof keyframe_image === "string" && keyframe_image.trim() !== "") {
-      createBody.promptImage = keyframe_image;
+    if (hasKeyframe) {
+      // Image-to-video: use gen3a_turbo with /v1/image_to_video
+      console.log("Using image-to-video endpoint with gen3a_turbo");
+      const createBody = {
+        promptText: prompt,
+        promptImage: keyframe_image,
+        model: "gen3a_turbo",
+        duration: 5,
+        ratio: ratio,
+        seed: seed,
+      };
+
+      createResponse = await fetch("https://api.dev.runwayml.com/v1/image_to_video", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${RUNWAY_API_KEY}`,
+          "Content-Type": "application/json",
+          "X-Runway-Version": "2024-11-06",
+        },
+        body: JSON.stringify(createBody),
+      });
+    } else {
+      // Text-to-video: use gen3a with /v1/tasks
+      console.log("Using text-to-video endpoint with gen3a");
+      const createBody = {
+        promptText: prompt,
+        model: "gen3a",
+        duration: 5,
+        ratio: ratio,
+        seed: seed,
+      };
+
+      createResponse = await fetch("https://api.dev.runwayml.com/v1/tasks", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${RUNWAY_API_KEY}`,
+          "Content-Type": "application/json",
+          "X-Runway-Version": "2024-11-06",
+        },
+        body: JSON.stringify(createBody),
+      });
     }
-
-    const createResponse = await fetch("https://api.dev.runwayml.com/v1/image_to_video", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${RUNWAY_API_KEY}`,
-        "Content-Type": "application/json",
-        "X-Runway-Version": "2024-11-06",
-      },
-      body: JSON.stringify(createBody),
-    });
 
     if (!createResponse.ok) {
       const errorText = await createResponse.text();
       console.error("Runway API error:", createResponse.status, errorText);
       
       let errorMessage = `Runway API error: ${createResponse.status}`;
+      try {
+        const errorJson = JSON.parse(errorText);
+        if (errorJson.error) {
+          errorMessage = `Runway API error: ${errorJson.error}`;
+          if (errorJson.issues) {
+            errorMessage += ` - Issues: ${JSON.stringify(errorJson.issues)}`;
+          }
+        }
+      } catch {
+        // If not JSON, use text
+        errorMessage += `: ${errorText}`;
+      }
+      
       if (createResponse.status === 403 || createResponse.status === 401) {
         errorMessage = "Authentication failed. Please verify your RUNWAY_API_KEY is correct and has the necessary permissions.";
       } else if (createResponse.status === 429) {
@@ -159,7 +197,7 @@ serve(async (req) => {
         keyframe_image: keyframe_image || null,
         video_url: videoUrl,
         generation_id: finalGeneration.id,
-        model: "gen3a_turbo"
+        model: hasKeyframe ? "gen3a_turbo" : "gen3a"
       });
 
     if (cacheError) {

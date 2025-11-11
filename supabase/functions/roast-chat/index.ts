@@ -276,12 +276,20 @@ Remember: Your purpose is to assist and provide value to the user in a professio
       try {
         console.log("Video generation requested, calling Runway ML API...");
         
-        // Extract keyframe image if present in message
+        // Extract keyframe image and ratio if present in message
         let keyframe_image = null;
+        let ratio = "1280:768"; // Default horizontal
+        
         if (hasImageContent) {
           const imageContent = lastMessage.content.find((c: any) => c.type === "image_url");
           if (imageContent?.image_url?.url) {
             keyframe_image = imageContent.image_url.url;
+          }
+          
+          // Extract ratio from text content if specified
+          const ratioMatch = textContent.match(/\[ratio:(1280:768|768:1280)\]/);
+          if (ratioMatch) {
+            ratio = ratioMatch[1];
           }
         }
 
@@ -320,8 +328,9 @@ Remember: Your purpose is to assist and provide value to the user in a professio
                   "Authorization": req.headers.get("Authorization") || "",
                 },
                 body: JSON.stringify({ 
-                  prompt: textContent,
-                  keyframe_image
+                  prompt: textContent.replace(/\[ratio:(1280:768|768:1280)\]/, '').trim(),
+                  keyframe_image: keyframe_image && typeof keyframe_image === "string" && keyframe_image.trim() !== "" ? keyframe_image : undefined,
+                  ratio: ratio
                 }),
               });
 
