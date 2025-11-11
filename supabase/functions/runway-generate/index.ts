@@ -91,7 +91,7 @@ serve(async (req) => {
         body: JSON.stringify(createBody),
       });
     } else {
-      // Text-to-video: use gen3a with /v1/tasks
+      // Text-to-video: use gen3a with /v1/text_to_video
       console.log("Using text-to-video endpoint with gen3a");
       const createBody = {
         promptText: prompt,
@@ -101,7 +101,7 @@ serve(async (req) => {
         seed: seed,
       };
 
-      createResponse = await fetch("https://api.dev.runwayml.com/v1/tasks", {
+      createResponse = await fetch("https://api.dev.runwayml.com/v1/text_to_video", {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${RUNWAY_API_KEY}`,

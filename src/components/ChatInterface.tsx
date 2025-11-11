@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { streamChat, Message } from "@/utils/chatStream";
 import ChatMessage from "./ChatMessage";
 import { messageSchema, conversationTitleSchema } from "@/utils/validation";
-import { Send, Globe, Image as ImageIcon, X, Menu, LogOut, Paperclip, Square } from "lucide-react";
+import { Send, Globe, Image as ImageIcon, X, Menu, LogOut, Paperclip, Square, Video } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { SettingsDialog } from "@/components/SettingsDialog";
@@ -13,6 +13,7 @@ import { ExportButton } from "@/components/ExportButton";
 import { PdfPreview } from "@/components/PdfPreview";
 import { VideoGenerationProgress } from "@/components/VideoGenerationProgress";
 import { VideoOrientationSelector } from "@/components/VideoOrientationSelector";
+import { VideoGenerationPanel } from "@/components/VideoGenerationPanel";
 
 import { ModeSelector } from "@/components/ModeSelector";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
@@ -52,6 +53,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
   const [videoProgress, setVideoProgress] = useState<number>(0);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
   const [videoOrientation, setVideoOrientation] = useState<"horizontal" | "vertical">("horizontal");
+  const [showVideoPanel, setShowVideoPanel] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -633,6 +635,15 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
     }
   }, [handleSend]);
 
+  const handleVideoGenerate = (prompt: string, orientation: "horizontal" | "vertical") => {
+    setVideoOrientation(orientation);
+    if (inputRef.current) {
+      inputRef.current.value = `genera un video de ${prompt}`;
+    }
+    setShowVideoPanel(false);
+    handleSend();
+  };
+
   const handleStop = () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -769,6 +780,15 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
       {/* Input */}
       <div className="border-t border-border bg-card/50 backdrop-blur-sm">
         <div className="container max-w-4xl mx-auto px-4 py-6">
+          {/* Video Generation Panel */}
+          {showVideoPanel && (
+            <VideoGenerationPanel
+              onGenerate={handleVideoGenerate}
+              onClose={() => setShowVideoPanel(false)}
+              isLoading={isLoading}
+            />
+          )}
+          
           {/* Check if this is a video generation request for showing orientation selector */}
           {(() => {
             const inputText = inputRef.current?.value.trim() ?? "";
@@ -860,6 +880,16 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
               title={language === "es" ? "Adjuntar archivos (imágenes, vídeos, PDFs, documentos)" : "Attach files (images, videos, PDFs, documents)"}
             >
               <Paperclip className="h-5 w-5" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setShowVideoPanel(!showVideoPanel)}
+              disabled={isLoading}
+              title={language === "es" ? "Generar vídeo con IA" : "Generate AI video"}
+              className={showVideoPanel ? "bg-primary/10 text-primary border-primary/20" : ""}
+            >
+              <Video className="h-5 w-5" />
             </Button>
             <Input
               ref={inputRef}
