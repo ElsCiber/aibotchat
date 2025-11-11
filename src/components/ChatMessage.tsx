@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import ReactMarkdown from "react-markdown";
 import CodeBlock from "./CodeBlock";
+import { YamlValidator } from "./YamlValidator";
 
 interface ChatMessageProps {
   message: Message;
@@ -116,11 +117,17 @@ const ChatMessage = ({ message, language = "en", onAttachImage, isStreaming = fa
               code({ node, inline, className, children, ...props }: any) {
                 const match = /language-(\w+)/.exec(className || "");
                 const codeContent = String(children).replace(/\n$/, "");
+                const isYaml = match && (match[1] === "yaml" || match[1] === "yml");
                 
                 return !inline && match ? (
-                  <CodeBlock language={match[1]}>
-                    {codeContent}
-                  </CodeBlock>
+                  <>
+                    <CodeBlock language={match[1]}>
+                      {codeContent}
+                    </CodeBlock>
+                    {!isUser && isYaml && (
+                      <YamlValidator content={codeContent} />
+                    )}
+                  </>
                 ) : (
                   <code className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono" {...props}>
                     {children}
