@@ -14,6 +14,7 @@ import { PdfPreview } from "@/components/PdfPreview";
 import { VideoGenerationProgress } from "@/components/VideoGenerationProgress";
 import { VideoOrientationSelector } from "@/components/VideoOrientationSelector";
 import { VideoGenerationPanel } from "@/components/VideoGenerationPanel";
+import { VideoPreview } from "@/components/VideoPreview";
 
 import { ModeSelector } from "@/components/ModeSelector";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
@@ -753,7 +754,7 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
               {isGeneratingVideo && (
                 <div className="flex gap-3 items-start mb-6">
                   <div className="flex-1">
-                    <VideoGenerationProgress 
+                    <VideoPreview 
                       progress={videoProgress} 
                       estimatedTime={videoProgress < 30 ? "~5-6 min" : videoProgress < 60 ? "~3-4 min" : videoProgress < 90 ? "~1-2 min" : "~30 seg"}
                     />

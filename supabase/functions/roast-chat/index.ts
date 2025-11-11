@@ -308,12 +308,14 @@ Remember: Your purpose is to assist and provide value to the user in a professio
             });
             controller.enqueue(encoder.encode(`data: ${initialMsg}\n\n`));
 
-            // Simulate progress updates
+            // Simulate progress updates with incremental increases
+            let currentProgress = 10;
             const progressInterval = setInterval(() => {
+              currentProgress = Math.min(95, currentProgress + Math.floor(Math.random() * 5) + 2);
               const progressMsg = JSON.stringify({
                 choices: [{
                   delta: {
-                    videoProgress: Math.min(95, Math.floor(Math.random() * 20) + 10)
+                    videoProgress: currentProgress
                   }
                 }]
               });

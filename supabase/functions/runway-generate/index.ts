@@ -91,11 +91,11 @@ serve(async (req) => {
         body: JSON.stringify(createBody),
       });
     } else {
-      // Text-to-video: use gen3a with /v1/text_to_video
-      console.log("Using text-to-video endpoint with gen3a");
+      // Text-to-video: use gen3a_turbo with /v1/text_to_video
+      console.log("Using text-to-video endpoint with gen3a_turbo");
       const createBody = {
         promptText: prompt,
-        model: "gen3a",
+        model: "gen3a_turbo",
         duration: 5,
         ratio: ratio,
         seed: seed,
@@ -168,7 +168,13 @@ serve(async (req) => {
       }
 
       finalGeneration = await statusResponse.json();
-      console.log(`Status check ${attempts}:`, finalGeneration.status);
+      console.log(`Status check ${attempts}:`, finalGeneration.status, "Progress:", finalGeneration.progress);
+
+      // Send preview frame if available
+      if (finalGeneration.artifacts && finalGeneration.artifacts.length > 0) {
+        const previewFrame = finalGeneration.artifacts[0];
+        console.log("Preview frame available:", previewFrame);
+      }
 
       if (finalGeneration.status === "SUCCEEDED") {
         completed = true;
@@ -197,7 +203,7 @@ serve(async (req) => {
         keyframe_image: keyframe_image || null,
         video_url: videoUrl,
         generation_id: finalGeneration.id,
-        model: hasKeyframe ? "gen3a_turbo" : "gen3a"
+        model: "gen3a_turbo"
       });
 
     if (cacheError) {
