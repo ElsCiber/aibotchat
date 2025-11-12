@@ -47,7 +47,11 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
   const [uploadedFiles, setUploadedFiles] = useState<Array<{name: string, content: string, type: string}>>([]);
   const [mode, setMode] = useState<"formal" | "developer" | null>(null);
   const [isLoadingMode, setIsLoadingMode] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMoreMessages, setHasMoreMessages] = useState(true);
+  const [oldestMessageDate, setOldestMessageDate] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -151,12 +155,31 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
     if (conversationId) {
       loadMessages();
       loadConversationMode();
+      setHasMoreMessages(true);
+      setOldestMessageDate(null);
     } else {
       setMessages([]);
       setMode(null);
       setIsLoadingMode(false);
+      setHasMoreMessages(true);
+      setOldestMessageDate(null);
     }
   }, [conversationId]);
+
+  // Infinite scroll handler
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      if (container.scrollTop < 200 && hasMoreMessages && !isLoadingMore) {
+        loadMoreMessages();
+      }
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [hasMoreMessages, isLoadingMore, oldestMessageDate, conversationId]);
 
   const loadConversationMode = async () => {
     if (!conversationId) return;
@@ -195,14 +218,70 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
     }
 
     // Reverse to maintain chronological order
-    setMessages(
-      (data || []).reverse().map((msg) => ({
-        role: msg.role as "user" | "assistant",
-        content: msg.content,
-        images: msg.images || undefined,
-        videos: msg.videos || undefined,
-      }))
-    );
+    const loadedMessages = (data || []).reverse().map((msg) => ({
+      role: msg.role as "user" | "assistant",
+      content: msg.content,
+      images: msg.images || undefined,
+      videos: msg.videos || undefined,
+    }));
+    
+    setMessages(loadedMessages);
+    setHasMoreMessages(data && data.length === 100);
+    setOldestMessageDate(data && data.length > 0 ? data[data.length - 1].created_at : null);
+  };
+
+  const loadMoreMessages = async () => {
+    if (!conversationId || !oldestMessageDate || isLoadingMore || !hasMoreMessages) return;
+
+    setIsLoadingMore(true);
+    
+    // Save current scroll position
+    const container = messagesContainerRef.current;
+    const previousScrollHeight = container?.scrollHeight || 0;
+
+    const { data, error } = await supabase
+      .from("messages")
+      .select("*")
+      .eq("conversation_id", conversationId)
+      .lt("created_at", oldestMessageDate)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: language === "es" ? "Error al cargar mensajes" : "Error loading messages",
+        variant: "destructive",
+      });
+      setIsLoadingMore(false);
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      setHasMoreMessages(false);
+      setIsLoadingMore(false);
+      return;
+    }
+
+    const olderMessages = data.reverse().map((msg) => ({
+      role: msg.role as "user" | "assistant",
+      content: msg.content,
+      images: msg.images || undefined,
+      videos: msg.videos || undefined,
+    }));
+
+    setMessages((prev) => [...olderMessages, ...prev]);
+    setHasMoreMessages(data.length === 50);
+    setOldestMessageDate(data[data.length - 1].created_at);
+    setIsLoadingMore(false);
+
+    // Restore scroll position
+    setTimeout(() => {
+      if (container) {
+        const newScrollHeight = container.scrollHeight;
+        container.scrollTop = newScrollHeight - previousScrollHeight;
+      }
+    }, 0);
   };
 
   const saveMessage = async (message: Message) => {
@@ -674,8 +753,17 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
       </header>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto">
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto">
         <div className="container max-w-4xl mx-auto px-4 py-8">
+          {isLoadingMore && (
+            <div className="flex justify-center mb-4">
+              <div className="flex gap-1.5 bg-card border border-border rounded-2xl px-6 py-3 shadow-lg">
+                <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+            </div>
+          )}
           {!mode && !isLoadingMode ? (
             <ModeSelector onModeSelect={handleModeSelect} />
           ) : messages.length === 0 ? (
