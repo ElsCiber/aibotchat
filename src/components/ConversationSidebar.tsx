@@ -13,6 +13,7 @@ import {
   SidebarMenuItem,
   SidebarHeader,
   SidebarTrigger,
+  SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar";
 import {
@@ -26,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useToast } from "@/hooks/use-toast";
+import { CreditBalance } from "./CreditBalance";
 
 interface Conversation {
   id: string;
@@ -324,6 +326,12 @@ export function ConversationSidebar({
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      
+      {!isCollapsed && (
+        <SidebarFooter>
+          <CreditBalance />
+        </SidebarFooter>
+      )}
     </Sidebar>
   );
 }

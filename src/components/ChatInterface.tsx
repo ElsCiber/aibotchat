@@ -177,11 +177,13 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
   const loadMessages = async () => {
     if (!conversationId) return;
 
+    // Optimized: Load only the last 100 messages for faster initial load
     const { data, error } = await supabase
       .from("messages")
       .select("*")
       .eq("conversation_id", conversationId)
-      .order("created_at", { ascending: true });
+      .order("created_at", { ascending: false })
+      .limit(100);
 
     if (error) {
       toast({
@@ -192,8 +194,9 @@ const ChatInterface = ({ conversationId, onConversationCreated, userId }: ChatIn
       return;
     }
 
+    // Reverse to maintain chronological order
     setMessages(
-      data.map((msg) => ({
+      (data || []).reverse().map((msg) => ({
         role: msg.role as "user" | "assistant",
         content: msg.content,
         images: msg.images || undefined,
