@@ -359,6 +359,28 @@ Recuerda: Tu propósito es asistir y proporcionar valor al usuario de manera pro
     if (!response.ok) {
       const errorText = await response.text();
       console.error("Lovable AI API error:", response.status, errorText);
+      
+      // Return proper status codes for rate limiting and payment issues
+      if (response.status === 429) {
+        return new Response(
+          JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }),
+          {
+            status: 429,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+      
+      if (response.status === 402) {
+        return new Response(
+          JSON.stringify({ error: "Not enough credits. Please add credits to your workspace in Settings → Workspace → Usage." }),
+          {
+            status: 402,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+      
       throw new Error(`Lovable AI API error: ${response.status} - ${errorText}`);
     }
 

@@ -80,7 +80,7 @@ export async function streamChat({
         return;
       }
       if (resp.status === 402) {
-        onError("Looks like someone forgot to pay the bills. Classic.");
+        onError("No hay créditos suficientes. Ve a Configuración → Espacio de trabajo → Uso para agregar créditos.");
         return;
       }
       throw new Error("Failed to start stream");
